@@ -1,0 +1,170 @@
+services:
+  # ===== DATABASE =====
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: rento-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rento}
+      POSTGRES_USER: ${POSTGRES_USER:-rento_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rento_secret_password}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rento_user -d rento"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== CACHE =====
+  redis:
+    image: redis:7-alpine
+    container_name: rento-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== SEARCH =====
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: rento-elasticsearch
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  # ===== OBJECT STORAGE =====
+  minio:
+    image: minio/minio:latest
+    container_name: rento-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ===== MESSAGE QUEUE =====
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rento-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-guest}
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ===== AUTH SERVICE (Node.js) =====
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: rento-auth
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ===== CORE API (Go) =====
+  core-api:
+    build:
+      context: ./services/core-api
+      dockerfile: Dockerfile
+    container_name: rento-core-api
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # ===== CHAT SERVICE (Node.js + WebSocket) =====
+  chat-service:
+    build:
+      context: ./services/chat-service
+      dockerfile: Dockerfile
+    container_name: rento-chat
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ===== NGINX GATEWAY =====
+  nginx:
+    image: nginx:alpine
+    container_name: rento-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./gateway/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - core-api
+      - chat-service
+
+volumes:
+  pgdata:
+  redisdata:
+  esdata:
+  miniodata:
+  rabbitmqdata:
