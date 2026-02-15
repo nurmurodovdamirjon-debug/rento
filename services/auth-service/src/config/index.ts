@@ -23,6 +23,28 @@ export const config = {
     refreshSecret: process.env.JWT_REFRESH_SECRET || '',
     accessExpiry: process.env.JWT_ACCESS_EXPIRY || '15m',
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY || '7d',
+    accessExpirySeconds: parseInt(process.env.JWT_ACCESS_EXPIRY_SECONDS || '900'),
+    refreshExpirySeconds: parseInt(process.env.JWT_REFRESH_EXPIRY_SECONDS || '604800'),
+  },
+
+  sms: {
+    provider: process.env.SMS_PROVIDER || 'eskiz',
+    eskizEmail: process.env.ESKIZ_EMAIL || '',
+    eskizPassword: process.env.ESKIZ_PASSWORD || '',
+    eskizBaseUrl: process.env.ESKIZ_BASE_URL || 'https://notify.eskiz.uz/api',
+  },
+
+  rateLimit: {
+    smsMaxPerHour: parseInt(process.env.RATE_LIMIT_SMS_MAX || '3'),
+    smsWindowSeconds: parseInt(process.env.RATE_LIMIT_SMS_WINDOW || '3600'),
+    otpVerifyMax: 5,
+    otpVerifyWindowSeconds: 300,
+    apiMaxPerMinute: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '60'),
+  },
+
+  otp: {
+    length: 6,
+    expirySeconds: 300,
   },
 
   corsOrigins: (process.env.CORS_ALLOWED_ORIGINS || '').split(','),

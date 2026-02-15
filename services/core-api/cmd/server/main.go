@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,33 +9,68 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
 	"github.com/rento/core-api/internal/config"
+	"github.com/rento/core-api/internal/middleware"
+	"github.com/rento/core-api/pkg/database"
+	"github.com/rento/core-api/pkg/response"
 )
 
 func main() {
 	cfg := config.Load()
 
-	if cfg.AppEnv == "production" {
+	// Zerolog sozlash
+	if cfg.AppEnv == "development" {
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	} else {
+		zerolog.SetGlobalLevel(zerolog.InfoLevel)
 		gin.SetMode(gin.ReleaseMode)
 	}
 
+	// PostgreSQL ulanish
+	db, err := database.NewPostgresDB(cfg.DatabaseURL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect PostgreSQL")
+	}
+	defer db.Close()
+
+	// Redis ulanish
+	redisClient, err := database.NewRedisClient(cfg.RedisURL, "")
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect Redis")
+	}
+	defer redisClient.Close()
+
 	router := gin.New()
-	router.Use(gin.Logger())
+
+	// Middleware
+	router.Use(middleware.LoggerMiddleware())
 	router.Use(gin.Recovery())
+	router.Use(middleware.CORSMiddleware(cfg.CORSOrigins))
+	router.Use(middleware.RateLimitMiddleware(redisClient, cfg.RateLimitMax))
 
 	// Health check endpoint
 	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
+		response.OK(c, gin.H{
 			"status":  "ok",
 			"service": "core-api",
 			"version": cfg.AppVersion,
 		})
 	})
 
-	// API v1 routes (Sprint 1+ da qo'shiladi)
+	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		_ = v1 // Placeholder — Sprint 1 da routelar qo'shiladi
+		// Public routes
+		_ = v1 // Sprint 2+ da route'lar qo'shiladi
+
+		// Protected routes (auth talab qilinadi)
+		// protected := v1.Group("")
+		// protected.Use(middleware.AuthMiddleware(cfg.JWTAccessSecret))
+		// Sprint 2+ da protected route'lar qo'shiladi
 	}
 
 	srv := &http.Server{
@@ -49,9 +83,12 @@ func main() {
 
 	// Graceful shutdown
 	go func() {
-		log.Printf("Core API starting on port %s (env: %s)", cfg.AppPort, cfg.AppEnv)
+		log.Info().
+			Str("port", cfg.AppPort).
+			Str("env", cfg.AppEnv).
+			Msg("Core API starting")
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed: %v", err)
+			log.Fatal().Err(err).Msg("Server failed")
 		}
 	}()
 
@@ -59,12 +96,12 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	log.Println("Shutting down server...")
+	log.Info().Msg("Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced shutdown: %v", err)
+		log.Fatal().Err(err).Msg("Server forced shutdown")
 	}
-	log.Println("Server exited")
+	log.Info().Msg("Server exited")
 }
