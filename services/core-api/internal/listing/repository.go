@@ -336,6 +336,31 @@ func (r *Repository) FindImagesByListingID(ctx context.Context, listingID string
 	return images, nil
 }
 
+// FindImagesByListingIDs — bir nechta e'lon rasmlari (batch — N+1 fix)
+func (r *Repository) FindImagesByListingIDs(ctx context.Context, listingIDs []string) (map[string][]ListingImage, error) {
+	if len(listingIDs) == 0 {
+		return map[string][]ListingImage{}, nil
+	}
+
+	query := `
+		SELECT id, listing_id, url, thumbnail_url, sort_order, is_main, created_at
+		FROM listing_images
+		WHERE listing_id = ANY($1)
+		ORDER BY listing_id, sort_order ASC`
+
+	var images []ListingImage
+	if err := r.db.SelectContext(ctx, &images, query, listingIDs); err != nil {
+		return nil, fmt.Errorf("find images batch: %w", err)
+	}
+
+	result := make(map[string][]ListingImage, len(listingIDs))
+	for _, img := range images {
+		lid := img.ListingID.String()
+		result[lid] = append(result[lid], img)
+	}
+	return result, nil
+}
+
 // CreateImage — rasm qo'shish
 func (r *Repository) CreateImage(ctx context.Context, listingID, url, thumbnailURL string, sortOrder int, isMain bool) (*ListingImage, error) {
 	var img ListingImage
@@ -497,4 +522,32 @@ func (r *Repository) GetStats(ctx context.Context, listingID string) (*ListingSt
 		"SELECT COUNT(*) FROM favorites WHERE listing_id = $1", listingID)
 
 	return &ListingStats{Views: views, Favorites: favCount, Contacts: contacts}, nil
+}
+
+// FindByStatus — status bo'yicha e'lonlar (admin uchun)
+func (r *Repository) FindByStatus(ctx context.Context, status string, page, perPage int) ([]*Listing, int, error) {
+	var total int
+	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM listings WHERE status = $1", status); err != nil {
+		return nil, 0, fmt.Errorf("count by status: %w", err)
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 50 {
+		perPage = 20
+	}
+	offset := (page - 1) * perPage
+
+	query := fmt.Sprintf(
+		"SELECT %s FROM listings WHERE status = $1 ORDER BY created_at ASC LIMIT %d OFFSET %d",
+		listingColumns, perPage, offset,
+	)
+
+	var listings []*Listing
+	if err := r.db.SelectContext(ctx, &listings, query, status); err != nil {
+		return nil, 0, fmt.Errorf("find by status: %w", err)
+	}
+
+	return listings, total, nil
 }

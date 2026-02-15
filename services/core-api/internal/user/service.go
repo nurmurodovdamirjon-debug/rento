@@ -82,3 +82,70 @@ func (s *Service) GetPublicProfile(ctx context.Context, targetUserID string) (*P
 
 	return user.ToPublicResponse(), nil
 }
+
+// ===== ADMIN METHODS =====
+
+// BlockUser — foydalanuvchini bloklash (admin)
+func (s *Service) BlockUser(ctx context.Context, targetUserID, adminID string) error {
+	user, err := s.repo.FindByID(ctx, targetUserID)
+	if err != nil {
+		return fmt.Errorf("find user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found: %s", targetUserID)
+	}
+	if user.IsBlocked {
+		return fmt.Errorf("user already blocked: %s", targetUserID)
+	}
+
+	if err := s.repo.BlockUser(ctx, targetUserID); err != nil {
+		return fmt.Errorf("block user: %w", err)
+	}
+
+	log.Info().
+		Str("admin", adminID).
+		Str("target_user", targetUserID).
+		Msg("User blocked by admin")
+
+	return nil
+}
+
+// UnblockUser — foydalanuvchini blokdan chiqarish (admin)
+func (s *Service) UnblockUser(ctx context.Context, targetUserID, adminID string) error {
+	user, err := s.repo.FindByID(ctx, targetUserID)
+	if err != nil {
+		return fmt.Errorf("find user: %w", err)
+	}
+	if user == nil {
+		return fmt.Errorf("user not found: %s", targetUserID)
+	}
+	if !user.IsBlocked {
+		return fmt.Errorf("user not blocked: %s", targetUserID)
+	}
+
+	if err := s.repo.UnblockUser(ctx, targetUserID); err != nil {
+		return fmt.Errorf("unblock user: %w", err)
+	}
+
+	log.Info().
+		Str("admin", adminID).
+		Str("target_user", targetUserID).
+		Msg("User unblocked by admin")
+
+	return nil
+}
+
+// GetAllUsers — barcha foydalanuvchilar (admin)
+func (s *Service) GetAllUsers(ctx context.Context, page, perPage int) ([]*UserResponse, int, error) {
+	users, total, err := s.repo.GetAllUsers(ctx, page, perPage)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get all users: %w", err)
+	}
+
+	responses := make([]*UserResponse, len(users))
+	for i, u := range users {
+		responses[i] = u.ToResponse()
+	}
+
+	return responses, total, nil
+}

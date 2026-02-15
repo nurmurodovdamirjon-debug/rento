@@ -112,3 +112,66 @@ func (r *Repository) UpdateLastSeen(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+// ===== ADMIN METHODS =====
+
+// BlockUser — foydalanuvchini bloklash (admin)
+func (r *Repository) BlockUser(ctx context.Context, id string) error {
+	query := `UPDATE users SET is_blocked = true, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("block user %s: %w", id, err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", id)
+	}
+	return nil
+}
+
+// UnblockUser — foydalanuvchini blokdan chiqarish (admin)
+func (r *Repository) UnblockUser(ctx context.Context, id string) error {
+	query := `UPDATE users SET is_blocked = false, updated_at = NOW() WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("unblock user %s: %w", id, err)
+	}
+	rows, _ := result.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("user not found: %s", id)
+	}
+	return nil
+}
+
+// GetAllUsers — barcha foydalanuvchilar ro'yxati (admin, paginated)
+func (r *Repository) GetAllUsers(ctx context.Context, page, perPage int) ([]*User, int, error) {
+	var total int
+	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM users WHERE is_active = true"); err != nil {
+		return nil, 0, fmt.Errorf("count users: %w", err)
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 || perPage > 100 {
+		perPage = 20
+	}
+	offset := (page - 1) * perPage
+
+	query := `
+		SELECT id, phone, phone_verified, full_name, email, avatar_url,
+		       role, id_verified, id_document_url, id_verified_at,
+		       rating_avg, rating_count, subscription, sub_expires_at,
+		       language, last_seen_at, created_at, updated_at,
+		       is_active, is_blocked
+		FROM users WHERE is_active = true
+		ORDER BY created_at DESC
+		LIMIT $1 OFFSET $2`
+
+	var users []*User
+	if err := r.db.SelectContext(ctx, &users, query, perPage, offset); err != nil {
+		return nil, 0, fmt.Errorf("get all users: %w", err)
+	}
+
+	return users, total, nil
+}

@@ -43,6 +43,17 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMW gin.HandlerFunc) {
 	}
 }
 
+// RegisterAdminRoutes — admin moderation routelari
+func (h *Handler) RegisterAdminRoutes(r *gin.RouterGroup, authMW, adminMW gin.HandlerFunc) {
+	admin := r.Group("/admin/listings")
+	admin.Use(authMW, adminMW)
+	{
+		admin.GET("/pending", h.AdminGetPending)
+		admin.PUT("/:id/approve", h.AdminApprove)
+		admin.PUT("/:id/reject", h.AdminReject)
+	}
+}
+
 // CreateListing — POST /listings
 func (h *Handler) CreateListing(c *gin.Context) {
 	userID := c.GetString("userId")
@@ -307,4 +318,72 @@ func (h *Handler) GetNearby(c *gin.Context) {
 	}
 
 	response.Paginated(c, items, filter.Page, filter.PerPage, total)
+}
+
+// ===== ADMIN MODERATION HANDLERS =====
+
+// AdminGetPending — GET /admin/listings/pending?page=1&per_page=20
+func (h *Handler) AdminGetPending(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+
+	items, total, err := h.service.AdminGetPendingListings(c.Request.Context(), page, perPage)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, items, page, perPage, total)
+}
+
+// AdminApprove — PUT /admin/listings/:id/approve
+func (h *Handler) AdminApprove(c *gin.Context) {
+	adminID := c.GetString("userId")
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		response.BadRequest(c, "INVALID_ID", "Noto'g'ri ID formati")
+		return
+	}
+
+	err := h.service.AdminUpdateStatus(c.Request.Context(), id, adminID, "active")
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.NotFound(c, "LISTING_NOT_FOUND", "E'lon topilmadi")
+			return
+		}
+		if errors.Is(err, ErrInvalidTransition) {
+			response.BadRequest(c, "INVALID_STATUS_TRANSITION", err.Error())
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, gin.H{"status": "active", "message": "E'lon tasdiqlandi"})
+}
+
+// AdminReject — PUT /admin/listings/:id/reject
+func (h *Handler) AdminReject(c *gin.Context) {
+	adminID := c.GetString("userId")
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		response.BadRequest(c, "INVALID_ID", "Noto'g'ri ID formati")
+		return
+	}
+
+	err := h.service.AdminUpdateStatus(c.Request.Context(), id, adminID, "rejected")
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			response.NotFound(c, "LISTING_NOT_FOUND", "E'lon topilmadi")
+			return
+		}
+		if errors.Is(err, ErrInvalidTransition) {
+			response.BadRequest(c, "INVALID_STATUS_TRANSITION", err.Error())
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, gin.H{"status": "rejected", "message": "E'lon rad etildi"})
 }

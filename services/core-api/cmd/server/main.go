@@ -18,6 +18,7 @@ import (
 	"github.com/rento/core-api/internal/media"
 	"github.com/rento/core-api/internal/middleware"
 	"github.com/rento/core-api/internal/notification"
+	"github.com/rento/core-api/internal/report"
 	"github.com/rento/core-api/internal/user"
 	"github.com/rento/core-api/pkg/database"
 	"github.com/rento/core-api/pkg/response"
@@ -111,11 +112,19 @@ func main() {
 	notificationService := notification.NewService(notificationRepo)
 	notificationHandler := notification.NewHandler(notificationService)
 
+	// Report module — repository → service → handler
+	reportRepo := report.NewRepository(db)
+	reportService := report.NewService(reportRepo)
+	reportHandler := report.NewHandler(reportService)
+
 	// notificationService ni keyinchalik chat/listing modullarida ishlatish mumkin
 	_ = notificationService
 
 	// Auth middleware
 	authMW := middleware.AuthMiddleware(cfg.JWTAccessSecret)
+
+	// Admin middleware
+	adminMW := middleware.RequireAdmin()
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
@@ -134,6 +143,13 @@ func main() {
 
 		// Notification routes (GET/PUT /notifications)
 		notificationHandler.RegisterRoutes(v1, authMW)
+
+		// Report routes (POST /reports, GET/PUT /reports/admin/*)
+		reportHandler.RegisterRoutes(v1, authMW, adminMW)
+
+		// Admin routes
+		listingHandler.RegisterAdminRoutes(v1, authMW, adminMW)
+		userHandler.RegisterAdminRoutes(v1, authMW, adminMW)
 	}
 
 	srv := &http.Server{

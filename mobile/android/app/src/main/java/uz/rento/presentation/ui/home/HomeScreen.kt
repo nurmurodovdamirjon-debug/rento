@@ -42,7 +42,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import uz.rento.domain.model.DealType
 import uz.rento.domain.model.ListingType
+import uz.rento.presentation.components.EmptyStateView
 import uz.rento.presentation.components.ErrorView
+import uz.rento.presentation.components.NetworkErrorView
+import uz.rento.presentation.components.ShimmerList
 
 /**
  * HomeScreen — asosiy e'lonlar ro'yxati
@@ -118,12 +121,7 @@ fun HomeScreen(
 
                 when {
                     uiState.isLoading && uiState.listings.isEmpty() -> {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
+                        ShimmerList(count = 4)
                     }
 
                     uiState.error != null && uiState.listings.isEmpty() -> {
@@ -131,10 +129,16 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            ErrorView(
-                                message = uiState.error ?: "Xatolik yuz berdi",
-                                onRetry = { viewModel.refresh() }
-                            )
+                            if (uiState.error?.contains("internet", ignoreCase = true) == true ||
+                                uiState.error?.contains("network", ignoreCase = true) == true ||
+                                uiState.error?.contains("connection", ignoreCase = true) == true) {
+                                NetworkErrorView(onRetry = { viewModel.refresh() })
+                            } else {
+                                ErrorView(
+                                    message = uiState.error ?: "Xatolik yuz berdi",
+                                    onRetry = { viewModel.refresh() }
+                                )
+                            }
                         }
                     }
 
@@ -143,21 +147,13 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    "E'lonlar topilmadi",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(
-                                    "Filtrlarni o'zgartirib ko'ring",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            EmptyStateView(
+                                message = "E'lonlar topilmadi",
+                                icon = androidx.compose.material.icons.Icons.Outlined.SearchOff,
+                                description = "Filtrlarni o'zgartirib ko'ring",
+                                actionText = "Filtrni tozalash",
+                                onAction = { viewModel.refresh() }
+                            )
                         }
                     }
 

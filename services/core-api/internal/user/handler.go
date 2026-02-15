@@ -1,6 +1,7 @@
 package user
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -124,4 +125,81 @@ func (h *Handler) GetPublicProfile(c *gin.Context) {
 	}
 
 	response.OK(c, profile)
+}
+
+// ===== ADMIN HANDLERS =====
+
+// RegisterAdminRoutes — admin user routelari
+func (h *Handler) RegisterAdminRoutes(r *gin.RouterGroup, authMW, adminMW gin.HandlerFunc) {
+	admin := r.Group("/admin/users")
+	admin.Use(authMW, adminMW)
+	{
+		admin.GET("", h.AdminGetUsers)
+		admin.PUT("/:id/block", h.AdminBlockUser)
+		admin.PUT("/:id/unblock", h.AdminUnblockUser)
+	}
+}
+
+// AdminGetUsers — GET /admin/users?page=1&per_page=20
+func (h *Handler) AdminGetUsers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "20"))
+
+	users, total, err := h.service.GetAllUsers(c.Request.Context(), page, perPage)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, users, page, perPage, total)
+}
+
+// AdminBlockUser — PUT /admin/users/:id/block
+func (h *Handler) AdminBlockUser(c *gin.Context) {
+	adminID := c.GetString("userId")
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		response.BadRequest(c, "INVALID_ID", "Noto'g'ri ID formati")
+		return
+	}
+
+	if err := h.service.BlockUser(c.Request.Context(), id, adminID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			response.NotFound(c, "USER_NOT_FOUND", "Foydalanuvchi topilmadi")
+			return
+		}
+		if strings.Contains(err.Error(), "already blocked") {
+			response.BadRequest(c, "ALREADY_BLOCKED", "Foydalanuvchi allaqachon bloklangan")
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, gin.H{"message": "Foydalanuvchi bloklandi"})
+}
+
+// AdminUnblockUser — PUT /admin/users/:id/unblock
+func (h *Handler) AdminUnblockUser(c *gin.Context) {
+	adminID := c.GetString("userId")
+	id := c.Param("id")
+	if _, err := uuid.Parse(id); err != nil {
+		response.BadRequest(c, "INVALID_ID", "Noto'g'ri ID formati")
+		return
+	}
+
+	if err := h.service.UnblockUser(c.Request.Context(), id, adminID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			response.NotFound(c, "USER_NOT_FOUND", "Foydalanuvchi topilmadi")
+			return
+		}
+		if strings.Contains(err.Error(), "not blocked") {
+			response.BadRequest(c, "NOT_BLOCKED", "Foydalanuvchi bloklanmagan")
+			return
+		}
+		response.InternalError(c)
+		return
+	}
+
+	response.OK(c, gin.H{"message": "Foydalanuvchi blokdan chiqarildi"})
 }

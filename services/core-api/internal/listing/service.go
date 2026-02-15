@@ -76,32 +76,55 @@ func (s *Service) GetListing(ctx context.Context, id string) (*ListingResponse, 
 	return listing.ToResponse(images), nil
 }
 
-// GetListings — e'lonlar ro'yxati (filtrli)
+// GetListings — e'lonlar ro'yxati (filtrli, batch images — N+1 fix)
 func (s *Service) GetListings(ctx context.Context, filter *ListingsFilter) ([]*ListingListItem, int, error) {
 	listings, total, err := s.repo.FindAll(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get listings: %w", err)
 	}
 
+	// Batch images olish (N+1 fix)
+	ids := make([]string, len(listings))
+	for i, l := range listings {
+		ids[i] = l.ID.String()
+	}
+	imagesMap, err := s.repo.FindImagesByListingIDs(ctx, ids)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to batch load images")
+		imagesMap = map[string][]ListingImage{}
+	}
+
 	items := make([]*ListingListItem, len(listings))
 	for i, l := range listings {
-		images := s.getImagesResponse(ctx, l.ID.String())
+		lid := l.ID.String()
+		images := s.imagesToResponse(imagesMap[lid])
 		items[i] = l.ToListItem(images)
 	}
 
 	return items, total, nil
 }
 
-// GetMyListings — foydalanuvchining o'z e'lonlari
+// GetMyListings — foydalanuvchining o'z e'lonlari (batch images — N+1 fix)
 func (s *Service) GetMyListings(ctx context.Context, userID, status string, page, perPage int) ([]*ListingListItem, int, error) {
 	listings, total, err := s.repo.FindByUserID(ctx, userID, status, page, perPage)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get my listings: %w", err)
 	}
 
+	ids := make([]string, len(listings))
+	for i, l := range listings {
+		ids[i] = l.ID.String()
+	}
+	imagesMap, err := s.repo.FindImagesByListingIDs(ctx, ids)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to batch load images")
+		imagesMap = map[string][]ListingImage{}
+	}
+
 	items := make([]*ListingListItem, len(listings))
 	for i, l := range listings {
-		images := s.getImagesResponse(ctx, l.ID.String())
+		lid := l.ID.String()
+		images := s.imagesToResponse(imagesMap[lid])
 		items[i] = l.ToListItem(images)
 	}
 
@@ -246,7 +269,14 @@ func (s *Service) getImagesResponse(ctx context.Context, listingID string) []Ima
 		log.Warn().Err(err).Str("listing_id", listingID).Msg("Failed to load images")
 		return []ImageResponse{}
 	}
+	return s.imagesToResponse(images)
+}
 
+// imagesToResponse — ListingImage slice → ImageResponse slice (batch uchun helper)
+func (s *Service) imagesToResponse(images []ListingImage) []ImageResponse {
+	if images == nil {
+		return []ImageResponse{}
+	}
 	resp := make([]ImageResponse, len(images))
 	for i, img := range images {
 		resp[i] = ImageResponse{
@@ -285,25 +315,45 @@ func (s *Service) SearchListings(ctx context.Context, filter *SearchFilter) ([]*
 		return nil, 0, fmt.Errorf("find listings by ids: %w", err)
 	}
 
+	ids := make([]string, len(listings))
+	for i, l := range listings {
+		ids[i] = l.ID.String()
+	}
+	imagesMap, _ := s.repo.FindImagesByListingIDs(ctx, ids)
+	if imagesMap == nil {
+		imagesMap = map[string][]ListingImage{}
+	}
+
 	items := make([]*ListingListItem, len(listings))
 	for i, l := range listings {
-		images := s.getImagesResponse(ctx, l.ID.String())
+		lid := l.ID.String()
+		images := s.imagesToResponse(imagesMap[lid])
 		items[i] = l.ToListItem(images)
 	}
 
 	return items, result.Total, nil
 }
 
-// GetNearby — yaqin atrofdagi e'lonlar (PostGIS)
+// GetNearby — yaqin atrofdagi e'lonlar (PostGIS, batch images)
 func (s *Service) GetNearby(ctx context.Context, filter *NearbyFilter) ([]*NearbyListItem, int, error) {
 	results, total, err := s.repo.FindNearby(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("get nearby: %w", err)
 	}
 
+	ids := make([]string, len(results))
+	for i, r := range results {
+		ids[i] = r.ID.String()
+	}
+	imagesMap, _ := s.repo.FindImagesByListingIDs(ctx, ids)
+	if imagesMap == nil {
+		imagesMap = map[string][]ListingImage{}
+	}
+
 	items := make([]*NearbyListItem, len(results))
 	for i, r := range results {
-		images := s.getImagesResponse(ctx, r.ID.String())
+		lid := r.ID.String()
+		images := s.imagesToResponse(imagesMap[lid])
 		item := &NearbyListItem{
 			ListingListItem: *r.Listing.ToListItem(images),
 			DistanceMeters:  r.DistanceMeters,
@@ -344,4 +394,74 @@ func (s *Service) deleteFromES(ctx context.Context, id string) {
 	if err := s.searchRepo.DeleteDocument(ctx, id); err != nil {
 		log.Warn().Err(err).Str("listing_id", id).Msg("Failed to delete listing from ES")
 	}
+}
+
+// ===== ADMIN MODERATION =====
+
+// AdminUpdateStatus — admin tomonidan e'lon statusini o'zgartirish (ownership tekshiruvsiz)
+func (s *Service) AdminUpdateStatus(ctx context.Context, id, adminID, newStatus string) error {
+	listing, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("find listing: %w", err)
+	}
+	if listing == nil {
+		return ErrNotFound
+	}
+
+	// Status transition tekshiruv
+	allowed, ok := allowedTransitions[listing.Status]
+	if !ok {
+		return fmt.Errorf("%w: '%s' dan o'tish mumkin emas", ErrInvalidTransition, listing.Status)
+	}
+
+	valid := false
+	for _, s := range allowed {
+		if s == newStatus {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return fmt.Errorf("%w: '%s' → '%s' taqiqlangan", ErrInvalidTransition, listing.Status, newStatus)
+	}
+
+	if err := s.repo.UpdateStatus(ctx, id, newStatus); err != nil {
+		return fmt.Errorf("update status: %w", err)
+	}
+
+	log.Info().
+		Str("listing_id", id).
+		Str("admin_id", adminID).
+		Str("old_status", listing.Status).
+		Str("new_status", newStatus).
+		Msg("Admin updated listing status")
+
+	return nil
+}
+
+// AdminGetPendingListings — admin uchun tasdiqlash kutayotgan e'lonlar (batch images)
+func (s *Service) AdminGetPendingListings(ctx context.Context, page, perPage int) ([]*ListingListItem, int, error) {
+	listings, total, err := s.repo.FindByStatus(ctx, "pending", page, perPage)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get pending listings: %w", err)
+	}
+
+	ids := make([]string, len(listings))
+	for i, l := range listings {
+		ids[i] = l.ID.String()
+	}
+	imagesMap, err := s.repo.FindImagesByListingIDs(ctx, ids)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to batch load images")
+		imagesMap = map[string][]ListingImage{}
+	}
+
+	items := make([]*ListingListItem, len(listings))
+	for i, l := range listings {
+		lid := l.ID.String()
+		images := s.imagesToResponse(imagesMap[lid])
+		items[i] = l.ToListItem(images)
+	}
+
+	return items, total, nil
 }
