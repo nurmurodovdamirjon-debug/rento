@@ -32,6 +32,8 @@ import uz.rento.presentation.ui.profile.EditProfileScreen
 import uz.rento.presentation.ui.profile.ProfileScreen
 import uz.rento.presentation.ui.search.SearchScreen
 import uz.rento.presentation.ui.splash.SplashScreen
+import uz.rento.presentation.ui.favorites.FavoritesScreen
+import uz.rento.presentation.ui.notifications.NotificationsScreen
 
 /**
  * RentoNavGraph — asosiy navigatsiya grafi.
@@ -232,6 +234,12 @@ fun RentoNavGraph(
                     onNavigateToEditProfile = {
                         navController.navigate(Screen.EditProfile.route)
                     },
+                    onNavigateToFavorites = {
+                        navController.navigate(Screen.Favorites.route)
+                    },
+                    onNavigateToNotifications = {
+                        navController.navigate(Screen.Notifications.route)
+                    },
                     onLogout = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(0) { inclusive = true }
@@ -244,6 +252,23 @@ fun RentoNavGraph(
             composable(Screen.EditProfile.route) {
                 EditProfileScreen(
                     onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // Favorites — sevimlilar
+            composable(Screen.Favorites.route) {
+                FavoritesScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Screen.ListingDetail.createRoute(id))
+                    }
+                )
+            }
+
+            // Notifications — bildirishnomalar
+            composable(Screen.Notifications.route) {
+                NotificationsScreen(
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

@@ -13,9 +13,11 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/rento/core-api/internal/config"
+	"github.com/rento/core-api/internal/favorite"
 	"github.com/rento/core-api/internal/listing"
 	"github.com/rento/core-api/internal/media"
 	"github.com/rento/core-api/internal/middleware"
+	"github.com/rento/core-api/internal/notification"
 	"github.com/rento/core-api/internal/user"
 	"github.com/rento/core-api/pkg/database"
 	"github.com/rento/core-api/pkg/response"
@@ -99,6 +101,19 @@ func main() {
 	mediaService := media.NewService(minioStorage)
 	mediaHandler := media.NewHandler(mediaService)
 
+	// Favorite module — repository → service → handler
+	favoriteRepo := favorite.NewRepository(db)
+	favoriteService := favorite.NewService(favoriteRepo)
+	favoriteHandler := favorite.NewHandler(favoriteService)
+
+	// Notification module — repository → service → handler
+	notificationRepo := notification.NewRepository(db)
+	notificationService := notification.NewService(notificationRepo)
+	notificationHandler := notification.NewHandler(notificationService)
+
+	// notificationService ni keyinchalik chat/listing modullarida ishlatish mumkin
+	_ = notificationService
+
 	// Auth middleware
 	authMW := middleware.AuthMiddleware(cfg.JWTAccessSecret)
 
@@ -113,6 +128,12 @@ func main() {
 
 		// Media routes (POST /media/upload)
 		mediaHandler.RegisterRoutes(v1, authMW)
+
+		// Favorite routes (POST/GET /favorites)
+		favoriteHandler.RegisterRoutes(v1, authMW)
+
+		// Notification routes (GET/PUT /notifications)
+		notificationHandler.RegisterRoutes(v1, authMW)
 	}
 
 	srv := &http.Server{

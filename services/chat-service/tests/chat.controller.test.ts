@@ -140,9 +140,9 @@ describe('GET /chats', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.meta.total).toBe(1);
-    expect(res.body.meta.per_page).toBe(20);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.meta.total).toBe(1);
+    expect(res.body.data.meta.per_page).toBe(20);
   });
 
   it('per_page > 50 limitlanishi', async () => {
@@ -151,7 +151,7 @@ describe('GET /chats', () => {
     const res = await request(app).get('/chats').query({ per_page: 100 });
 
     expect(res.status).toBe(200);
-    expect(res.body.meta.per_page).toBe(50);
+    expect(res.body.data.meta.per_page).toBe(50);
   });
 });
 
@@ -176,8 +176,8 @@ describe('GET /chats/:room_id/messages', () => {
     const res = await request(app).get(`/chats/${ROOM_ID}/messages`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data).toHaveLength(1);
-    expect(res.body.meta.total).toBe(1);
+    expect(res.body.data.items).toHaveLength(1);
+    expect(res.body.data.meta.total).toBe(1);
   });
 });
 

@@ -174,7 +174,9 @@ fun HomeScreen(
                             ) { listing ->
                                 ListingCard(
                                     listing = listing,
-                                    onClick = { onNavigateToDetail(listing.id) }
+                                    onClick = { onNavigateToDetail(listing.id) },
+                                    isFavorite = listing.id in uiState.favoriteIds,
+                                    onToggleFavorite = { viewModel.toggleFavorite(it) }
                                 )
                             }
 

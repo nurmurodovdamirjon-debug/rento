@@ -52,12 +52,14 @@ class ChatController {
 
       res.json({
         success: true,
-        data: rooms,
-        meta: {
-          page,
-          per_page: perPage,
-          total,
-          total_pages: Math.ceil(total / perPage),
+        data: {
+          items: rooms,
+          meta: {
+            page,
+            per_page: perPage,
+            total,
+            total_pages: Math.ceil(total / perPage),
+          },
         },
       });
     } catch (error) {
@@ -82,12 +84,14 @@ class ChatController {
 
       res.json({
         success: true,
-        data: messages,
-        meta: {
-          page,
-          per_page: perPage,
-          total,
-          total_pages: Math.ceil(total / perPage),
+        data: {
+          items: messages,
+          meta: {
+            page,
+            per_page: perPage,
+            total,
+            total_pages: Math.ceil(total / perPage),
+          },
         },
       });
     } catch (error) {

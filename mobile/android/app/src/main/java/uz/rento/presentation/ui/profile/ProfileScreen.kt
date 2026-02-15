@@ -1,6 +1,7 @@
 package uz.rento.presentation.ui.profile
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Verified
@@ -57,6 +60,8 @@ import uz.rento.presentation.theme.RentoSuccess
 fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel(),
     onNavigateToEditProfile: () -> Unit,
+    onNavigateToFavorites: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -101,7 +106,9 @@ fun ProfileScreen(
                 uiState.user != null -> {
                     ProfileContent(
                         user = uiState.user!!,
-                        onLogout = { viewModel.logout(onLogout) }
+                        onLogout = { viewModel.logout(onLogout) },
+                        onNavigateToFavorites = onNavigateToFavorites,
+                        onNavigateToNotifications = onNavigateToNotifications
                     )
                 }
             }
@@ -112,7 +119,9 @@ fun ProfileScreen(
 @Composable
 private fun ProfileContent(
     user: uz.rento.domain.model.User,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToFavorites: () -> Unit,
+    onNavigateToNotifications: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -227,6 +236,62 @@ private fun ProfileContent(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+
+        // Sevimlilar va Bildirishnomalar
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNavigateToFavorites)
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Favorite,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "Sevimlilar",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onNavigateToNotifications)
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Notifications,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        "Bildirishnomalar",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
 
         // Chiqish tugmasi
         TextButton(
