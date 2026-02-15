@@ -52,7 +52,13 @@ func NoContent(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// Paginated — 200 with meta
+// PaginatedData — paginated javob uchun wrapper
+type PaginatedData struct {
+	Items interface{} `json:"items"`
+	Meta  Meta        `json:"meta"`
+}
+
+// Paginated — 200 with meta (data ichida items + meta)
 func Paginated(c *gin.Context, data interface{}, page, perPage, total int) {
 	totalPages := total / perPage
 	if total%perPage != 0 {
@@ -61,12 +67,14 @@ func Paginated(c *gin.Context, data interface{}, page, perPage, total int) {
 
 	c.JSON(http.StatusOK, Response{
 		Success: true,
-		Data:    data,
-		Meta: &Meta{
-			Page:       page,
-			PerPage:    perPage,
-			Total:      total,
-			TotalPages: totalPages,
+		Data: PaginatedData{
+			Items: data,
+			Meta: Meta{
+				Page:       page,
+				PerPage:    perPage,
+				Total:      total,
+				TotalPages: totalPages,
+			},
 		},
 	})
 }

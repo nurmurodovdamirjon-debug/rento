@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Text
@@ -50,7 +51,9 @@ import uz.rento.presentation.theme.RentoWarning
 fun ListingCard(
     listing: Listing,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFavorite: Boolean = false,
+    onToggleFavorite: ((String) -> Unit)? = null
 ) {
     Card(
         modifier = modifier
@@ -140,6 +143,23 @@ fun ListingCard(
                             "📷 ${listing.images.size}",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White
+                        )
+                    }
+                }
+
+                // ❤️ Sevimli tugmasi
+                if (onToggleFavorite != null) {
+                    IconButton(
+                        onClick = { onToggleFavorite(listing.id) },
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Sevimlilardan o'chirish" else "Sevimlilarga qo'shish",
+                            tint = if (isFavorite) Color(0xFFE91E63) else Color.White,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }

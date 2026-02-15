@@ -54,4 +54,10 @@ sealed class Screen(val route: String) {
 
     /** EditProfile — profil tahrirlash */
     data object EditProfile : Screen("edit_profile")
+
+    /** Favorites — sevimli e'lonlar */
+    data object Favorites : Screen("favorites")
+
+    /** Notifications — bildirishnomalar */
+    data object Notifications : Screen("notifications")
 }

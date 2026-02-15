@@ -9,15 +9,21 @@ import dagger.hilt.components.SingletonComponent
 import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.data.remote.api.AuthApi
 import uz.rento.data.remote.api.ChatApi
+import uz.rento.data.remote.api.FavoriteApi
 import uz.rento.data.remote.api.ListingApi
+import uz.rento.data.remote.api.NotificationApi
 import uz.rento.data.remote.api.UserApi
 import uz.rento.data.repository.AuthRepositoryImpl
 import uz.rento.data.repository.ChatRepositoryImpl
+import uz.rento.data.repository.FavoriteRepositoryImpl
 import uz.rento.data.repository.ListingRepositoryImpl
+import uz.rento.data.repository.NotificationRepositoryImpl
 import uz.rento.data.repository.UserRepositoryImpl
 import uz.rento.domain.repository.AuthRepository
 import uz.rento.domain.repository.ChatRepository
+import uz.rento.domain.repository.FavoriteRepository
 import uz.rento.domain.repository.ListingRepository
+import uz.rento.domain.repository.NotificationRepository
 import uz.rento.domain.repository.UserRepository
 import javax.inject.Singleton
 
@@ -65,5 +71,21 @@ object AppModule {
         userPreferences: UserPreferences
     ): ChatRepository {
         return ChatRepositoryImpl(chatApi, userPreferences)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFavoriteRepository(
+        favoriteApi: FavoriteApi
+    ): FavoriteRepository {
+        return FavoriteRepositoryImpl(favoriteApi)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationRepository(
+        notificationApi: NotificationApi
+    ): NotificationRepository {
+        return NotificationRepositoryImpl(notificationApi)
     }
 }

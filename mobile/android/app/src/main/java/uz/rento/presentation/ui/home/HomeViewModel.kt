@@ -13,6 +13,8 @@ import uz.rento.domain.model.Listing
 import uz.rento.domain.model.ListingFilter
 import uz.rento.domain.model.ListingType
 import uz.rento.domain.usecase.listing.GetListingsUseCase
+import uz.rento.domain.usecase.favorite.GetFavoriteIdsUseCase
+import uz.rento.domain.usecase.favorite.ToggleFavoriteUseCase
 import javax.inject.Inject
 
 data class HomeUiState(
@@ -28,12 +30,15 @@ data class HomeUiState(
     val searchQuery: String = "",
     val selectedCity: String? = null,
     val selectedType: ListingType? = null,
-    val selectedDealType: DealType? = null
+    val selectedDealType: DealType? = null,
+    val favoriteIds: Set<String> = emptySet()
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val getListingsUseCase: GetListingsUseCase
+    private val getListingsUseCase: GetListingsUseCase,
+    private val getFavoriteIdsUseCase: GetFavoriteIdsUseCase,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -41,6 +46,32 @@ class HomeViewModel @Inject constructor(
 
     init {
         loadListings()
+        loadFavoriteIds()
+    }
+
+    private fun loadFavoriteIds() {
+        viewModelScope.launch {
+            getFavoriteIdsUseCase()
+                .onSuccess { ids ->
+                    _uiState.update { it.copy(favoriteIds = ids.toSet()) }
+                }
+        }
+    }
+
+    fun toggleFavorite(listingId: String) {
+        viewModelScope.launch {
+            toggleFavoriteUseCase(listingId)
+                .onSuccess { result ->
+                    _uiState.update { state ->
+                        val newIds = if (result.isFavorite) {
+                            state.favoriteIds + listingId
+                        } else {
+                            state.favoriteIds - listingId
+                        }
+                        state.copy(favoriteIds = newIds)
+                    }
+                }
+        }
     }
 
     fun loadListings() {

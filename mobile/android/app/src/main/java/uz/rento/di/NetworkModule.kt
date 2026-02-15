@@ -11,7 +11,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 import uz.rento.BuildConfig
 import uz.rento.data.remote.api.AuthApi
 import uz.rento.data.remote.api.ChatApi
+import uz.rento.data.remote.api.FavoriteApi
 import uz.rento.data.remote.api.ListingApi
+import uz.rento.data.remote.api.NotificationApi
 import uz.rento.data.remote.api.UserApi
 import uz.rento.data.remote.interceptor.AuthInterceptor
 import java.util.concurrent.TimeUnit
@@ -114,5 +116,31 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ChatApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideFavoriteApi(
+        @Named("api") okHttpClient: OkHttpClient
+    ): FavoriteApi {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(FavoriteApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideNotificationApi(
+        @Named("api") okHttpClient: OkHttpClient
+    ): NotificationApi {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(NotificationApi::class.java)
     }
 }
