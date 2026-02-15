@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Rento</string>
+    <string name="onboarding_title_1">Uy ijaraga oling</string>
+    <string name="onboarding_desc_1">Vositachilarsiz, to\'g\'ridan-to\'g\'ri uy egasidan</string>
+    <string name="onboarding_title_2">E\'lon joylashtiring</string>
+    <string name="onboarding_desc_2">Uyingizni ijaraga bering — bepul va oson</string>
+    <string name="onboarding_title_3">Xavfsiz muloqot</string>
+    <string name="onboarding_desc_3">Chat orqali bog\'laning, shartnoma tuzing</string>
+    <string name="btn_next">Keyingi</string>
+    <string name="btn_start">Boshlash</string>
+    <string name="btn_skip">O\'tkazib yuborish</string>
+    <string name="login_title">Telefon raqamingiz</string>
+    <string name="login_subtitle">SMS orqali tasdiqlash kodini yuboramiz</string>
+    <string name="login_phone_hint">+998 XX XXX XX XX</string>
+    <string name="login_btn_send">Kod yuborish</string>
+    <string name="otp_title">Tasdiqlash kodi</string>
+    <string name="otp_subtitle">%s raqamiga yuborilgan kodni kiriting</string>
+    <string name="otp_resend">Qayta yuborish</string>
+    <string name="otp_resend_timer">Qayta yuborish (%d s)</string>
+    <string name="profile_title">Profil</string>
+    <string name="profile_edit">Tahrirlash</string>
+    <string name="profile_save">Saqlash</string>
+    <string name="profile_name_hint">To\'liq ism</string>
+    <string name="profile_email_hint">Email (ixtiyoriy)</string>
+    <string name="profile_language">Til</string>
+    <string name="error_generic">Xatolik yuz berdi</string>
+    <string name="error_network">Internet aloqasi yo\'q</string>
+    <string name="btn_retry">Qayta urinish</string>
+</resources>

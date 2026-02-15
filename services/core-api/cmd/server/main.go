@@ -14,6 +14,7 @@ import (
 
 	"github.com/rento/core-api/internal/config"
 	"github.com/rento/core-api/internal/middleware"
+	"github.com/rento/core-api/internal/user"
 	"github.com/rento/core-api/pkg/database"
 	"github.com/rento/core-api/pkg/response"
 )
@@ -61,16 +62,19 @@ func main() {
 		})
 	})
 
+	// User module — repository → service → handler
+	userRepo := user.NewRepository(db)
+	userService := user.NewService(userRepo)
+	userHandler := user.NewHandler(userService)
+
+	// Auth middleware
+	authMW := middleware.AuthMiddleware(cfg.JWTAccessSecret)
+
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// Public routes
-		_ = v1 // Sprint 2+ da route'lar qo'shiladi
-
-		// Protected routes (auth talab qilinadi)
-		// protected := v1.Group("")
-		// protected.Use(middleware.AuthMiddleware(cfg.JWTAccessSecret))
-		// Sprint 2+ da protected route'lar qo'shiladi
+		// User routes (GET /users/me, PUT /users/me, GET /users/:id)
+		userHandler.RegisterRoutes(v1, authMW)
 	}
 
 	srv := &http.Server{
