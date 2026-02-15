@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Rento" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Rento.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#FF2196F3</item>
+        <item name="postSplashScreenTheme">@style/Theme.Rento</item>
+    </style>
+</resources>
