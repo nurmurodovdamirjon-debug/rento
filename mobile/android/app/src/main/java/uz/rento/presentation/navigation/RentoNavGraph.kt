@@ -25,8 +25,10 @@ import uz.rento.presentation.ui.detail.ListingDetailScreen
 import uz.rento.presentation.ui.home.HomeScreen
 import uz.rento.presentation.ui.mylistings.MyListingsScreen
 import uz.rento.presentation.ui.onboarding.OnboardingScreen
+import uz.rento.presentation.ui.map.MapScreen
 import uz.rento.presentation.ui.profile.EditProfileScreen
 import uz.rento.presentation.ui.profile.ProfileScreen
+import uz.rento.presentation.ui.search.SearchScreen
 import uz.rento.presentation.ui.splash.SplashScreen
 
 /**
@@ -179,9 +181,26 @@ fun RentoNavGraph(
                 )
             }
 
-            // Search (placeholder)
+            // Search
             composable(Screen.Search.route) {
-                PlaceholderScreen(title = "Qidirish", subtitle = "Tez kunda...")
+                SearchScreen(
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Screen.ListingDetail.createRoute(id))
+                    },
+                    onNavigateToMap = {
+                        navController.navigate(Screen.Map.route)
+                    }
+                )
+            }
+
+            // Map — yaqin atrofdagi e'lonlar
+            composable(Screen.Map.route) {
+                MapScreen(
+                    onBack = { navController.popBackStack() },
+                    onNavigateToDetail = { id ->
+                        navController.navigate(Screen.ListingDetail.createRoute(id))
+                    }
+                )
             }
 
             // Chat (placeholder)

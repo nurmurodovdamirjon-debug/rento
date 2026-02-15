@@ -198,3 +198,91 @@ data class ListingStats(
     val favorites: Int,
     val contacts: Int
 )
+
+/**
+ * SearchFilter — Elasticsearch qidiruv filtrlari (q + filtrlar + geo)
+ */
+data class SearchFilter(
+    val q: String? = null,
+    val city: String? = null,
+    val district: String? = null,
+    val type: ListingType? = null,
+    val dealType: DealType? = null,
+    val roomsMin: Int? = null,
+    val roomsMax: Int? = null,
+    val priceMin: Double? = null,
+    val priceMax: Double? = null,
+    val currency: String? = null,
+    val hasFurniture: Boolean? = null,
+    val hasParking: Boolean? = null,
+    val allowsPets: Boolean? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val radiusKm: Int? = null,
+    val sort: String? = null,
+    val page: Int = 1,
+    val perPage: Int = 20
+) {
+    /** Filter → Map (query params uchun) */
+    fun toQueryMap(): Map<String, String> = buildMap {
+        q?.let { put("q", it) }
+        city?.let { put("city", it) }
+        district?.let { put("district", it) }
+        type?.let { put("type", it.value) }
+        dealType?.let { put("deal_type", it.value) }
+        roomsMin?.let { put("rooms_min", it.toString()) }
+        roomsMax?.let { put("rooms_max", it.toString()) }
+        priceMin?.let { put("price_min", it.toString()) }
+        priceMax?.let { put("price_max", it.toString()) }
+        currency?.let { put("currency", it) }
+        hasFurniture?.let { put("has_furniture", it.toString()) }
+        hasParking?.let { put("has_parking", it.toString()) }
+        allowsPets?.let { put("allows_pets", it.toString()) }
+        lat?.let { put("lat", it.toString()) }
+        lng?.let { put("lng", it.toString()) }
+        radiusKm?.let { put("radius_km", it.toString()) }
+        sort?.let { put("sort", it) }
+        put("page", page.toString())
+        put("per_page", perPage.toString())
+    }
+}
+
+/**
+ * NearbyFilter — yaqin atrofdagi e'lonlar filtri
+ */
+data class NearbyFilter(
+    val lat: Double,
+    val lng: Double,
+    val radiusKm: Int = 5,
+    val type: ListingType? = null,
+    val dealType: DealType? = null,
+    val page: Int = 1,
+    val perPage: Int = 20
+) {
+    fun toQueryMap(): Map<String, String> = buildMap {
+        put("lat", lat.toString())
+        put("lng", lng.toString())
+        put("radius_km", radiusKm.toString())
+        type?.let { put("type", it.value) }
+        dealType?.let { put("deal_type", it.value) }
+        put("page", page.toString())
+        put("per_page", perPage.toString())
+    }
+}
+
+/**
+ * NearbyListing — yaqin atrofdagi e'lon (masofa bilan)
+ */
+data class NearbyListing(
+    val listing: Listing,
+    val latitude: Double?,
+    val longitude: Double?,
+    val distanceMeters: Double
+) {
+    /** Formatlangan masofa */
+    val formattedDistance: String
+        get() = when {
+            distanceMeters < 1000 -> "${distanceMeters.toInt()} m"
+            else -> String.format("%.1f km", distanceMeters / 1000)
+        }
+}

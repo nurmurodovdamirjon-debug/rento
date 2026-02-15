@@ -357,6 +357,127 @@ func (r *Repository) DeleteImagesByListingID(ctx context.Context, listingID stri
 	return err
 }
 
+// FindByIDs — ID lar ro'yxati bo'yicha e'lonlarni olish (tartibni saqlaydi)
+func (r *Repository) FindByIDs(ctx context.Context, ids []string) ([]*Listing, error) {
+	if len(ids) == 0 {
+		return []*Listing{}, nil
+	}
+
+	// IN clause qurilishi
+	placeholders := make([]string, len(ids))
+	args := make([]interface{}, len(ids))
+	for i, id := range ids {
+		placeholders[i] = fmt.Sprintf("$%d", i+1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(
+		"SELECT %s FROM listings WHERE id IN (%s)",
+		listingColumns,
+		strings.Join(placeholders, ","),
+	)
+
+	var listings []*Listing
+	if err := r.db.SelectContext(ctx, &listings, query, args...); err != nil {
+		return nil, fmt.Errorf("find listings by ids: %w", err)
+	}
+
+	// ES tartibini saqlash — IDs tartibi bo'yicha qaytarish
+	idOrder := make(map[string]int, len(ids))
+	for i, id := range ids {
+		idOrder[id] = i
+	}
+	ordered := make([]*Listing, 0, len(listings))
+	byID := make(map[string]*Listing, len(listings))
+	for _, l := range listings {
+		byID[l.ID.String()] = l
+	}
+	for _, id := range ids {
+		if l, ok := byID[id]; ok {
+			ordered = append(ordered, l)
+		}
+	}
+
+	return ordered, nil
+}
+
+// FindNearby — yaqin atrofdagi e'lonlar (PostGIS ST_DWithin)
+func (r *Repository) FindNearby(ctx context.Context, filter *NearbyFilter) ([]*NearbyListing, int, error) {
+	if filter.Page < 1 {
+		filter.Page = 1
+	}
+	if filter.RadiusKm < 1 {
+		filter.RadiusKm = 5
+	}
+	if filter.PerPage < 1 || filter.PerPage > 50 {
+		filter.PerPage = 20
+	}
+	offset := (filter.Page - 1) * filter.PerPage
+	radiusMeters := filter.RadiusKm * 1000
+
+	// WHERE shartlari
+	where := []string{
+		"status = 'active'",
+		"latitude IS NOT NULL",
+		"longitude IS NOT NULL",
+	}
+	args := []interface{}{filter.Lng, filter.Lat, radiusMeters}
+	argIdx := 4
+
+	if filter.Type != "" {
+		where = append(where, fmt.Sprintf("type = $%d", argIdx))
+		args = append(args, filter.Type)
+		argIdx++
+	}
+	if filter.DealType != "" {
+		where = append(where, fmt.Sprintf("deal_type = $%d", argIdx))
+		args = append(args, filter.DealType)
+		argIdx++
+	}
+
+	whereClause := strings.Join(where, " AND ")
+
+	// Total count
+	countQuery := fmt.Sprintf(`
+		SELECT COUNT(*) FROM listings
+		WHERE %s
+		AND ST_DWithin(
+			ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+			ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+			$3
+		)`, whereClause)
+
+	var total int
+	if err := r.db.GetContext(ctx, &total, countQuery, args...); err != nil {
+		return nil, 0, fmt.Errorf("count nearby listings: %w", err)
+	}
+
+	// Data query
+	dataQuery := fmt.Sprintf(`
+		SELECT %s,
+			ST_Distance(
+				ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+				ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography
+			) AS distance_meters
+		FROM listings
+		WHERE %s
+		AND ST_DWithin(
+			ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography,
+			ST_SetSRID(ST_MakePoint($1, $2), 4326)::geography,
+			$3
+		)
+		ORDER BY is_premium DESC, distance_meters ASC
+		LIMIT %d OFFSET %d`,
+		listingColumns, whereClause, filter.PerPage, offset)
+
+	var results []*NearbyListing
+	if err := r.db.SelectContext(ctx, &results, dataQuery, args...); err != nil {
+		return nil, 0, fmt.Errorf("find nearby listings: %w", err)
+	}
+
+	return results, total, nil
+}
+
 // IncrementViews — ko'rishlar sonini Redis da oshirish
 func (r *Repository) IncrementViews(ctx context.Context, listingID string) {
 	key := fmt.Sprintf("stats:listing:%s:views", listingID)

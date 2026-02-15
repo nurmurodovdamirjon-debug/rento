@@ -3,6 +3,9 @@ package uz.rento.domain.repository
 import uz.rento.domain.model.Listing
 import uz.rento.domain.model.ListingFilter
 import uz.rento.domain.model.ListingStats
+import uz.rento.domain.model.NearbyFilter
+import uz.rento.domain.model.NearbyListing
+import uz.rento.domain.model.SearchFilter
 
 /**
  * ListingRepository — e'lon operatsiyalari interfeysi
@@ -59,6 +62,12 @@ interface ListingRepository {
 
     /** Mening e'lonlarim */
     suspend fun getMyListings(filter: ListingFilter): Result<ListingsPage>
+
+    /** Elasticsearch qidiruv */
+    suspend fun searchListings(filter: SearchFilter): Result<ListingsPage>
+
+    /** Yaqin atrofdagi e'lonlar (PostGIS) */
+    suspend fun getNearbyListings(filter: NearbyFilter): Result<NearbyListingsPage>
 }
 
 /**
@@ -66,6 +75,17 @@ interface ListingRepository {
  */
 data class ListingsPage(
     val items: List<Listing>,
+    val page: Int,
+    val perPage: Int,
+    val total: Int,
+    val totalPages: Int
+)
+
+/**
+ * NearbyListingsPage — sahifalangan yaqin e'lonlar
+ */
+data class NearbyListingsPage(
+    val items: List<NearbyListing>,
     val page: Int,
     val perPage: Int,
     val total: Int,

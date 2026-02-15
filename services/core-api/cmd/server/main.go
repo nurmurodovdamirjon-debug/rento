@@ -47,6 +47,13 @@ func main() {
 	}
 	defer redisClient.Close()
 
+	// Elasticsearch ulanish
+	esClient, err := database.NewElasticClient(cfg.ElasticURL)
+	if err != nil {
+		log.Warn().Err(err).Msg("Elasticsearch not available — search disabled")
+		esClient = nil
+	}
+
 	router := gin.New()
 
 	// Middleware
@@ -69,9 +76,16 @@ func main() {
 	userService := user.NewService(userRepo)
 	userHandler := user.NewHandler(userService)
 
-	// Listing module — repository → service → handler
+	// Listing module — repository → search → service → handler
 	listingRepo := listing.NewRepository(db, redisClient)
-	listingService := listing.NewService(listingRepo, redisClient)
+	var searchRepo *listing.SearchRepo
+	if esClient != nil {
+		searchRepo = listing.NewSearchRepo(esClient, redisClient)
+		if err := searchRepo.EnsureIndex(context.Background()); err != nil {
+			log.Warn().Err(err).Msg("Failed to ensure ES index")
+		}
+	}
+	listingService := listing.NewService(listingRepo, searchRepo, redisClient)
 	listingHandler := listing.NewHandler(listingService)
 
 	// Media module — storage → service → handler

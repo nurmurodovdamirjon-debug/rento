@@ -25,6 +25,8 @@ func (h *Handler) RegisterRoutes(r *gin.RouterGroup, authMW gin.HandlerFunc) {
 	{
 		// Public routes — auth ixtiyoriy
 		listings.GET("", h.GetListings)
+		listings.GET("/search", h.SearchListings)
+		listings.GET("/nearby", h.GetNearby)
 		listings.GET("/:id", h.GetListing)
 
 		// Protected routes — auth talab qilinadi
@@ -271,4 +273,38 @@ func (h *Handler) GetStats(c *gin.Context) {
 	}
 
 	response.OK(c, stats)
+}
+
+// SearchListings — GET /listings/search?q=...&city=...&sort=relevance
+func (h *Handler) SearchListings(c *gin.Context) {
+	var filter SearchFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.ValidationError(c, err.Error(), nil)
+		return
+	}
+
+	items, total, err := h.service.SearchListings(c.Request.Context(), &filter)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, items, filter.Page, filter.PerPage, total)
+}
+
+// GetNearby — GET /listings/nearby?lat=...&lng=...&radius_km=...
+func (h *Handler) GetNearby(c *gin.Context) {
+	var filter NearbyFilter
+	if err := c.ShouldBindQuery(&filter); err != nil {
+		response.ValidationError(c, err.Error(), nil)
+		return
+	}
+
+	items, total, err := h.service.GetNearby(c.Request.Context(), &filter)
+	if err != nil {
+		response.InternalError(c)
+		return
+	}
+
+	response.Paginated(c, items, filter.Page, filter.PerPage, total)
 }

@@ -30,13 +30,14 @@ const maxDailyListings = 10
 
 // Service — e'lon biznes logikasi
 type Service struct {
-	repo  *Repository
-	redis *redis.Client
+	repo       *Repository
+	searchRepo *SearchRepo
+	redis      *redis.Client
 }
 
 // NewService — yangi Service yaratish
-func NewService(repo *Repository, redis *redis.Client) *Service {
-	return &Service{repo: repo, redis: redis}
+func NewService(repo *Repository, searchRepo *SearchRepo, redis *redis.Client) *Service {
+	return &Service{repo: repo, searchRepo: searchRepo, redis: redis}
 }
 
 // CreateListing — yangi e'lon yaratish (kunlik limit tekshiruvli)
@@ -51,6 +52,9 @@ func (s *Service) CreateListing(ctx context.Context, userID string, req *CreateL
 		log.Error().Err(err).Str("user_id", userID).Msg("Failed to create listing")
 		return nil, fmt.Errorf("create listing: %w", err)
 	}
+
+	// ES ga sync (goroutine — bloklamas)
+	go s.syncToES(context.Background(), listing)
 
 	return listing.ToResponse([]ImageResponse{}), nil
 }
@@ -127,6 +131,9 @@ func (s *Service) UpdateListing(ctx context.Context, id, userID string, req *Upd
 		return nil, ErrNotFound
 	}
 
+	// ES ga sync (goroutine — bloklamas)
+	go s.syncToES(context.Background(), updated)
+
 	images := s.getImagesResponse(ctx, id)
 	return updated.ToResponse(images), nil
 }
@@ -144,7 +151,14 @@ func (s *Service) DeleteListing(ctx context.Context, id, userID string) error {
 		return ErrForbidden
 	}
 
-	return s.repo.Delete(ctx, id)
+	if err := s.repo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// ES dan o'chirish (goroutine — bloklamas)
+	go s.deleteFromES(context.Background(), id)
+
+	return nil
 }
 
 // UpdateStatus — e'lon statusini o'zgartirish (faqat owner, transition tekshiruvli)
@@ -246,4 +260,88 @@ func (s *Service) getImagesResponse(ctx context.Context, listingID string) []Ima
 		}
 	}
 	return resp
+}
+
+// ===== SEARCH + NEARBY =====
+
+// SearchListings — Elasticsearch orqali qidiruv
+func (s *Service) SearchListings(ctx context.Context, filter *SearchFilter) ([]*ListingListItem, int, error) {
+	if s.searchRepo == nil {
+		return nil, 0, fmt.Errorf("search not available")
+	}
+
+	result, err := s.searchRepo.Search(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("search listings: %w", err)
+	}
+
+	if len(result.IDs) == 0 {
+		return []*ListingListItem{}, result.Total, nil
+	}
+
+	// DB dan to'liq ma'lumotlarni olish (ES tartibi bilan)
+	listings, err := s.repo.FindByIDs(ctx, result.IDs)
+	if err != nil {
+		return nil, 0, fmt.Errorf("find listings by ids: %w", err)
+	}
+
+	items := make([]*ListingListItem, len(listings))
+	for i, l := range listings {
+		images := s.getImagesResponse(ctx, l.ID.String())
+		items[i] = l.ToListItem(images)
+	}
+
+	return items, result.Total, nil
+}
+
+// GetNearby — yaqin atrofdagi e'lonlar (PostGIS)
+func (s *Service) GetNearby(ctx context.Context, filter *NearbyFilter) ([]*NearbyListItem, int, error) {
+	results, total, err := s.repo.FindNearby(ctx, filter)
+	if err != nil {
+		return nil, 0, fmt.Errorf("get nearby: %w", err)
+	}
+
+	items := make([]*NearbyListItem, len(results))
+	for i, r := range results {
+		images := s.getImagesResponse(ctx, r.ID.String())
+		item := &NearbyListItem{
+			ListingListItem: *r.Listing.ToListItem(images),
+			DistanceMeters:  r.DistanceMeters,
+		}
+		if r.Latitude.Valid {
+			item.Latitude = &r.Latitude.Float64
+		}
+		if r.Longitude.Valid {
+			item.Longitude = &r.Longitude.Float64
+		}
+		items[i] = item
+	}
+
+	return items, total, nil
+}
+
+// ===== ES SYNC =====
+
+// syncToES — e'lonni Elasticsearch ga sinxronlash
+func (s *Service) syncToES(ctx context.Context, listing *Listing) {
+	if s.searchRepo == nil {
+		return
+	}
+
+	images, _ := s.repo.FindImagesByListingID(ctx, listing.ID.String())
+	doc := ListingToDocument(listing, len(images))
+
+	if err := s.searchRepo.IndexListing(ctx, doc); err != nil {
+		log.Warn().Err(err).Str("listing_id", listing.ID.String()).Msg("Failed to sync listing to ES")
+	}
+}
+
+// deleteFromES — e'lonni Elasticsearch dan o'chirish
+func (s *Service) deleteFromES(ctx context.Context, id string) {
+	if s.searchRepo == nil {
+		return
+	}
+	if err := s.searchRepo.DeleteDocument(ctx, id); err != nil {
+		log.Warn().Err(err).Str("listing_id", id).Msg("Failed to delete listing from ES")
+	}
 }
