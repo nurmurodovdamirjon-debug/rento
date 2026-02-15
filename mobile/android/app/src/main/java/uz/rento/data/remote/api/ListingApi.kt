@@ -10,6 +10,7 @@ import retrofit2.http.QueryMap
 import uz.rento.data.remote.dto.ApiResponse
 import uz.rento.data.remote.dto.ListingDto
 import uz.rento.data.remote.dto.ListingListDto
+import uz.rento.data.remote.dto.NearbyListingListDto
 import uz.rento.data.remote.dto.CreateListingRequest
 import uz.rento.data.remote.dto.UpdateListingRequest
 import uz.rento.data.remote.dto.UpdateStatusRequest
@@ -63,4 +64,14 @@ interface ListingApi {
     suspend fun getMyListings(
         @QueryMap filters: Map<String, String>
     ): ApiResponse<PaginatedResponse<ListingListDto>>
+
+    @GET("listings/search")
+    suspend fun searchListings(
+        @QueryMap filters: Map<String, String>
+    ): ApiResponse<PaginatedResponse<ListingListDto>>
+
+    @GET("listings/nearby")
+    suspend fun getNearbyListings(
+        @QueryMap filters: Map<String, String>
+    ): ApiResponse<PaginatedResponse<NearbyListingListDto>>
 }

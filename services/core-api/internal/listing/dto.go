@@ -169,6 +169,25 @@ type ImageResponse struct {
 	IsMain       bool    `json:"is_main"`
 }
 
+// NearbyFilter — yaqin atrofdagi e'lonlar filtri (PostGIS)
+type NearbyFilter struct {
+	Lat      float64 `form:"lat" binding:"required"`
+	Lng      float64 `form:"lng" binding:"required"`
+	RadiusKm int     `form:"radius_km,default=5"`
+	Type     string  `form:"type"`
+	DealType string  `form:"deal_type"`
+	Page     int     `form:"page,default=1"`
+	PerPage  int     `form:"per_page,default=20"`
+}
+
+// NearbyListItem — yaqinidagi e'lon (masofa bilan)
+type NearbyListItem struct {
+	ListingListItem
+	Latitude       *float64 `json:"latitude,omitempty"`
+	Longitude      *float64 `json:"longitude,omitempty"`
+	DistanceMeters float64  `json:"distance_meters"`
+}
+
 // StatsResponse — statistika javobi
 type StatsResponse struct {
 	Views     int `json:"views"`

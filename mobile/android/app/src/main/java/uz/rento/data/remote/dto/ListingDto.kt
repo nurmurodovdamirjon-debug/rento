@@ -97,6 +97,37 @@ data class ListingListDto(
 )
 
 /**
+ * NearbyListingListDto — yaqin atrofdagi e'lon (masofa bilan)
+ */
+data class NearbyListingListDto(
+    val id: String,
+    val type: String,
+    @SerializedName("deal_type") val dealType: String,
+    val city: String,
+    val district: String?,
+    val address: String?,
+    val rooms: Int?,
+    val floor: Int?,
+    @SerializedName("total_floors") val totalFloors: Int?,
+    @SerializedName("area_sqm") val areaSqm: Double?,
+    val price: Double,
+    val currency: String,
+    @SerializedName("price_negotiable") val priceNegotiable: Boolean,
+    @SerializedName("has_furniture") val hasFurniture: Boolean,
+    @SerializedName("has_internet") val hasInternet: Boolean,
+    @SerializedName("is_premium") val isPremium: Boolean,
+    @SerializedName("views_count") val viewsCount: Int,
+    @SerializedName("favorites_count") val favoritesCount: Int,
+    val title: String,
+    val images: List<ListingImageDto>,
+    @SerializedName("published_at") val publishedAt: String?,
+    @SerializedName("created_at") val createdAt: String,
+    val latitude: Double?,
+    val longitude: Double?,
+    @SerializedName("distance_meters") val distanceMeters: Double
+)
+
+/**
  * ListingImageDto — rasm javobi
  */
 data class ListingImageDto(

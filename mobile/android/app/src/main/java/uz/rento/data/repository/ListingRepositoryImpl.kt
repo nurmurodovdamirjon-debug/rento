@@ -5,6 +5,7 @@ import uz.rento.data.remote.dto.CreateListingRequest
 import uz.rento.data.remote.dto.ListingDto
 import uz.rento.data.remote.dto.ListingListDto
 import uz.rento.data.remote.dto.ListingImageDto
+import uz.rento.data.remote.dto.NearbyListingListDto
 import uz.rento.data.remote.dto.UpdateListingRequest
 import uz.rento.data.remote.dto.UpdateStatusRequest
 import uz.rento.domain.model.DealType
@@ -14,8 +15,12 @@ import uz.rento.domain.model.ListingImage
 import uz.rento.domain.model.ListingStats
 import uz.rento.domain.model.ListingStatus
 import uz.rento.domain.model.ListingType
+import uz.rento.domain.model.NearbyFilter
+import uz.rento.domain.model.NearbyListing
+import uz.rento.domain.model.SearchFilter
 import uz.rento.domain.repository.ListingRepository
 import uz.rento.domain.repository.ListingsPage
+import uz.rento.domain.repository.NearbyListingsPage
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -249,6 +254,54 @@ class ListingRepositoryImpl @Inject constructor(
             Result.failure(e)
         }
     }
+
+    override suspend fun searchListings(filter: SearchFilter): Result<ListingsPage> {
+        return try {
+            val response = listingApi.searchListings(filter.toQueryMap())
+            if (response.success && response.data != null) {
+                val data = response.data
+                Result.success(
+                    ListingsPage(
+                        items = data.items.map { it.toDomain() },
+                        page = data.meta.page,
+                        perPage = data.meta.perPage,
+                        total = data.meta.total,
+                        totalPages = data.meta.totalPages
+                    )
+                )
+            } else {
+                Result.failure(
+                    Exception(response.error?.message ?: "Qidiruv xatoligi")
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    override suspend fun getNearbyListings(filter: NearbyFilter): Result<NearbyListingsPage> {
+        return try {
+            val response = listingApi.getNearbyListings(filter.toQueryMap())
+            if (response.success && response.data != null) {
+                val data = response.data
+                Result.success(
+                    NearbyListingsPage(
+                        items = data.items.map { it.toDomain() },
+                        page = data.meta.page,
+                        perPage = data.meta.perPage,
+                        total = data.meta.total,
+                        totalPages = data.meta.totalPages
+                    )
+                )
+            } else {
+                Result.failure(
+                    Exception(response.error?.message ?: "Yaqin e'lonlarni olishda xatolik")
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 // ===== Extension Functions: DTO → Domain =====
@@ -346,5 +399,54 @@ private fun ListingImageDto.toDomain(): ListingImage {
         thumbnailUrl = thumbnailUrl,
         sortOrder = sortOrder,
         isMain = isMain
+    )
+}
+
+private fun NearbyListingListDto.toDomain(): NearbyListing {
+    val listing = Listing(
+        id = id,
+        userId = "",
+        type = ListingType.fromValue(type),
+        dealType = DealType.fromValue(dealType),
+        city = city,
+        district = district,
+        address = address,
+        landmark = null,
+        latitude = latitude,
+        longitude = longitude,
+        rooms = rooms,
+        floor = floor,
+        totalFloors = totalFloors,
+        areaSqm = areaSqm,
+        price = price,
+        currency = currency,
+        priceNegotiable = priceNegotiable,
+        hasFurniture = hasFurniture,
+        hasAppliances = false,
+        hasInternet = hasInternet,
+        hasParking = false,
+        hasConditioner = false,
+        allowsPets = false,
+        allowsChildren = false,
+        utilitiesIncluded = false,
+        depositAmount = null,
+        status = ListingStatus.ACTIVE,
+        rejectionReason = null,
+        isPremium = isPremium,
+        viewsCount = viewsCount,
+        favoritesCount = favoritesCount,
+        contactsCount = 0,
+        title = title,
+        description = null,
+        images = images.map { it.toDomain() },
+        publishedAt = publishedAt,
+        createdAt = createdAt,
+        updatedAt = ""
+    )
+    return NearbyListing(
+        listing = listing,
+        latitude = latitude,
+        longitude = longitude,
+        distanceMeters = distanceMeters
     )
 }

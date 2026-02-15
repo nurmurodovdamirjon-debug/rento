@@ -35,8 +35,11 @@ sealed class Screen(val route: String) {
     /** MyListings — mening e'lonlarim */
     data object MyListings : Screen("my_listings")
 
-    /** Search — qidirish (placeholder) */
+    /** Search — qidirish */
     data object Search : Screen("search")
+
+    /** Map — xarita (yaqin atrofdagi e'lonlar) */
+    data object Map : Screen("map")
 
     /** Chat — xabarlar (placeholder) */
     data object Chat : Screen("chat")

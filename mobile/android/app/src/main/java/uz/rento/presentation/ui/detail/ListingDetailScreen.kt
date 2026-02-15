@@ -1,5 +1,8 @@
 package uz.rento.presentation.ui.detail
 
+import android.annotation.SuppressLint
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +51,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -442,6 +447,33 @@ private fun ListingDetailContent(
                 )
             }
 
+            // Joylashuv xaritasi
+            if (listing.latitude != null && listing.longitude != null) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                HorizontalDivider()
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    "Joylashuv",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                ListingLocationMap(
+                    latitude = listing.latitude!!,
+                    longitude = listing.longitude!!,
+                    title = listing.title,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                )
+            }
+
             // Bottom padding for bottom bar
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -531,4 +563,70 @@ private fun AmenityChip(
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+}
+
+/**
+ * ListingLocationMap — e'lon joylashuvini Yandex Maps orqali ko'rsatadi.
+ */
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun ListingLocationMap(
+    latitude: Double,
+    longitude: Double,
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    val mapHtml = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+            <script src="https://api-maps.yandex.ru/2.1/?apikey=YOUR_YANDEX_API_KEY&lang=uz_UZ" type="text/javascript"></script>
+            <style>
+                * { margin: 0; padding: 0; }
+                html, body, #map { width: 100%; height: 100%; }
+            </style>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script type="text/javascript">
+                ymaps.ready(function() {
+                    var map = new ymaps.Map('map', {
+                        center: [$latitude, $longitude],
+                        zoom: 15,
+                        controls: ['zoomControl']
+                    });
+                    map.behaviors.disable('scrollZoom');
+                    var placemark = new ymaps.Placemark(
+                        [$latitude, $longitude],
+                        { balloonContent: '${title.replace("'", "\\'")}' },
+                        { preset: 'islands#redDotIcon' }
+                    );
+                    map.geoObjects.add(placemark);
+                });
+            </script>
+        </body>
+        </html>
+    """.trimIndent()
+
+    AndroidView(
+        factory = { context ->
+            WebView(context).apply {
+                settings.javaScriptEnabled = true
+                settings.domStorageEnabled = true
+                settings.loadWithOverviewMode = true
+                settings.useWideViewPort = true
+                webViewClient = WebViewClient()
+                loadDataWithBaseURL(
+                    "https://yandex.uz",
+                    mapHtml,
+                    "text/html",
+                    "UTF-8",
+                    null
+                )
+            }
+        },
+        modifier = modifier
+    )
 }

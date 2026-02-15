@@ -68,6 +68,12 @@ type ListingStats struct {
 	Contacts  int `json:"contacts"`
 }
 
+// NearbyListing — yaqin atrofdagi e'lon (masofa bilan, PostGIS natijasi)
+type NearbyListing struct {
+	Listing
+	DistanceMeters float64 `json:"distance_meters" db:"distance_meters"`
+}
+
 // ToResponse — domain model → API response (to'liq)
 func (l *Listing) ToResponse(images []ImageResponse) *ListingResponse {
 	resp := &ListingResponse{
