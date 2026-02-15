@@ -21,8 +21,25 @@ sealed class Screen(val route: String) {
         fun createRoute(phone: String): String = "otp/$phone"
     }
 
-    /** Home — asosiy ekran (hozircha placeholder) */
+    /** Home — asosiy e'lonlar ro'yxati */
     data object Home : Screen("home")
+
+    /** ListingDetail — e'lon batafsil sahifasi */
+    data object ListingDetail : Screen("listing/{id}") {
+        fun createRoute(id: String): String = "listing/$id"
+    }
+
+    /** CreateListing — yangi e'lon yaratish */
+    data object CreateListing : Screen("create_listing")
+
+    /** MyListings — mening e'lonlarim */
+    data object MyListings : Screen("my_listings")
+
+    /** Search — qidirish (placeholder) */
+    data object Search : Screen("search")
+
+    /** Chat — xabarlar (placeholder) */
+    data object Chat : Screen("chat")
 
     /** Profile — foydalanuvchi profili */
     data object Profile : Screen("profile")
