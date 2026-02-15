@@ -26,6 +26,8 @@ import uz.rento.presentation.ui.home.HomeScreen
 import uz.rento.presentation.ui.mylistings.MyListingsScreen
 import uz.rento.presentation.ui.onboarding.OnboardingScreen
 import uz.rento.presentation.ui.map.MapScreen
+import uz.rento.presentation.ui.chat.ChatListScreen
+import uz.rento.presentation.ui.chat.ChatScreen
 import uz.rento.presentation.ui.profile.EditProfileScreen
 import uz.rento.presentation.ui.profile.ProfileScreen
 import uz.rento.presentation.ui.search.SearchScreen
@@ -203,9 +205,25 @@ fun RentoNavGraph(
                 )
             }
 
-            // Chat (placeholder)
+            // Chat — xabarlar ro'yxati
             composable(Screen.Chat.route) {
-                PlaceholderScreen(title = "Xabarlar", subtitle = "Tez kunda...")
+                ChatListScreen(
+                    onNavigateToChat = { roomId ->
+                        navController.navigate(Screen.ChatRoom.createRoute(roomId))
+                    }
+                )
+            }
+
+            // ChatRoom — suhbat ekrani
+            composable(
+                route = Screen.ChatRoom.route,
+                arguments = listOf(
+                    navArgument("roomId") { type = NavType.StringType }
+                )
+            ) {
+                ChatScreen(
+                    onBack = { navController.popBackStack() }
+                )
             }
 
             // Profile

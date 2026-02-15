@@ -18,5 +18,15 @@ export const config = {
     password: process.env.REDIS_PASSWORD || undefined,
   },
 
+  jwt: {
+    accessSecret: process.env.JWT_ACCESS_SECRET || '',
+  },
+
   corsOrigins: (process.env.CORS_ALLOWED_ORIGINS || '').split(','),
+
+  /** WebSocket: xabar cheklovi — 30 msg/min/room */
+  wsRateLimit: {
+    maxMessages: parseInt(process.env.WS_RATE_LIMIT_MAX || '30'),
+    windowMs: parseInt(process.env.WS_RATE_LIMIT_WINDOW || '60000'),
+  },
 };

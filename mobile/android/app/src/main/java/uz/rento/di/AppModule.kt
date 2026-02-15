@@ -8,12 +8,15 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.data.remote.api.AuthApi
+import uz.rento.data.remote.api.ChatApi
 import uz.rento.data.remote.api.ListingApi
 import uz.rento.data.remote.api.UserApi
 import uz.rento.data.repository.AuthRepositoryImpl
+import uz.rento.data.repository.ChatRepositoryImpl
 import uz.rento.data.repository.ListingRepositoryImpl
 import uz.rento.data.repository.UserRepositoryImpl
 import uz.rento.domain.repository.AuthRepository
+import uz.rento.domain.repository.ChatRepository
 import uz.rento.domain.repository.ListingRepository
 import uz.rento.domain.repository.UserRepository
 import javax.inject.Singleton
@@ -53,5 +56,14 @@ object AppModule {
         listingApi: ListingApi
     ): ListingRepository {
         return ListingRepositoryImpl(listingApi)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatRepository(
+        chatApi: ChatApi,
+        userPreferences: UserPreferences
+    ): ChatRepository {
+        return ChatRepositoryImpl(chatApi, userPreferences)
     }
 }

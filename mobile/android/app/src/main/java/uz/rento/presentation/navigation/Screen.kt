@@ -41,8 +41,13 @@ sealed class Screen(val route: String) {
     /** Map — xarita (yaqin atrofdagi e'lonlar) */
     data object Map : Screen("map")
 
-    /** Chat — xabarlar (placeholder) */
+    /** Chat — xabarlar ro'yxati */
     data object Chat : Screen("chat")
+
+    /** ChatRoom — suhbat ekrani */
+    data object ChatRoom : Screen("chat/{roomId}") {
+        fun createRoute(roomId: String): String = "chat/$roomId"
+    }
 
     /** Profile — foydalanuvchi profili */
     data object Profile : Screen("profile")

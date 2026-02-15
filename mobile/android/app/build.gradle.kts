@@ -26,6 +26,8 @@ android {
         // API URL — BuildConfig orqali
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3002/api/v1/\"")
         buildConfigField("String", "AUTH_BASE_URL", "\"http://10.0.2.2:3001/api/v1/\"")
+        buildConfigField("String", "CHAT_BASE_URL", "\"http://10.0.2.2:3003/api/v1/\"")
+        buildConfigField("String", "CHAT_WS_URL", "\"http://10.0.2.2:3003\"")
     }
 
     buildTypes {
@@ -38,6 +40,8 @@ android {
             )
             buildConfigField("String", "API_BASE_URL", "\"https://api.rento.uz/api/v1/\"")
             buildConfigField("String", "AUTH_BASE_URL", "\"https://api.rento.uz/api/v1/auth/\"")
+            buildConfigField("String", "CHAT_BASE_URL", "\"https://api.rento.uz/api/v1/\"")
+            buildConfigField("String", "CHAT_WS_URL", "\"https://api.rento.uz\"")
         }
     }
 
@@ -105,6 +109,9 @@ dependencies {
 
     // DataStore (preferences)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+
+    // Socket.IO — chat WebSocket
+    implementation("io.socket:socket.io-client:2.1.1")
 
     // Image loading — Coil
     implementation("io.coil-kt:coil-compose:2.5.0")
