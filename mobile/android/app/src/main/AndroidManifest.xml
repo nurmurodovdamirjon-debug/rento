@@ -16,7 +16,7 @@
         tools:targetApi="34">
 
         <activity
-            android:name=".presentation.MainActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.Rento.Splash">
             <intent-filter>

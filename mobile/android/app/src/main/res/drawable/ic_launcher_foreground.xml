@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Rento "R" logo foreground -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54">
+        <!-- House shape -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,28 L30,48 L30,76 L78,76 L78,48 Z"/>
+        <!-- Door -->
+        <path
+            android:fillColor="#2196F3"
+            android:pathData="M47,58 L47,76 L61,76 L61,58 Z"/>
+        <!-- Window -->
+        <path
+            android:fillColor="#BBDEFB"
+            android:pathData="M63,52 L63,58 L73,58 L73,52 Z"/>
+        <!-- Chimney -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M66,30 L66,42 L72,38 L72,30 Z"/>
+    </group>
+</vector>

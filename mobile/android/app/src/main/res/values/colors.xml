@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Rento Brand Colors -->
+    <color name="rento_primary">#2196F3</color>
+    <color name="rento_primary_dark">#1976D2</color>
+    <color name="rento_primary_light">#BBDEFB</color>
+    <color name="rento_accent">#FF9800</color>
+    <color name="rento_white">#FFFFFF</color>
+    <color name="rento_black">#1A1A1A</color>
+    <color name="rento_gray">#9E9E9E</color>
+    <color name="rento_background">#F5F5F5</color>
+    <color name="rento_error">#F44336</color>
+    <color name="rento_success">#4CAF50</color>
+    <color name="splash_background">#FF2196F3</color>
+</resources>
