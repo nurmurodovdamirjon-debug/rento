@@ -1,5 +1,8 @@
+import path from 'path';
 import winston from 'winston';
 import { config } from '../config';
+
+const logDir = path.join(process.cwd(), 'logs');
 
 export const logger = winston.createLogger({
   level: config.appEnv === 'development' ? 'debug' : 'info',
@@ -13,5 +16,20 @@ export const logger = winston.createLogger({
   defaultMeta: { service: 'chat-service' },
   transports: [
     new winston.transports.Console(),
+    // Combined log
+    new winston.transports.File({
+      filename: path.join(logDir, 'combined.log'),
+      maxsize: 10 * 1024 * 1024, // 10 MB
+      maxFiles: 5,
+      tailable: true,
+    }),
+    // Error log
+    new winston.transports.File({
+      filename: path.join(logDir, 'error.log'),
+      level: 'error',
+      maxsize: 10 * 1024 * 1024, // 10 MB
+      maxFiles: 10,
+      tailable: true,
+    }),
   ],
 });

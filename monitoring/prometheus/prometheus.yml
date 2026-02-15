@@ -1,0 +1,77 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+# Alert manager
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Alert rules
+rule_files:
+  - "/etc/prometheus/alert_rules.yml"
+
+# Scrape configs
+scrape_configs:
+  # Prometheus o'zini monitoring qiladi
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Core API (Go)
+  - job_name: "core-api"
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["core-api:3002"]
+        labels:
+          service: "core-api"
+          language: "go"
+
+  # Auth Service (Node.js)
+  - job_name: "auth-service"
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["auth-service:3001"]
+        labels:
+          service: "auth-service"
+          language: "nodejs"
+
+  # Chat Service (Node.js)
+  - job_name: "chat-service"
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["chat-service:3003"]
+        labels:
+          service: "chat-service"
+          language: "nodejs"
+
+  # PostgreSQL (agar postgres-exporter qo'shilsa)
+  # - job_name: "postgres"
+  #   static_configs:
+  #     - targets: ["postgres-exporter:9187"]
+
+  # Redis (agar redis-exporter qo'shilsa)
+  # - job_name: "redis"
+  #   static_configs:
+  #     - targets: ["redis-exporter:9121"]
+
+  # Nginx (agar nginx-exporter qo'shilsa)
+  # - job_name: "nginx"
+  #   static_configs:
+  #     - targets: ["nginx-exporter:9113"]
+
+  # Node health checks
+  - job_name: "health-checks"
+    metrics_path: /health
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - "auth-service:3001"
+          - "core-api:3002"
+          - "chat-service:3003"

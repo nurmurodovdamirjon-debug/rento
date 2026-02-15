@@ -1,0 +1,100 @@
+# =============================================================================
+# RENTO — Prometheus Alert Qoidalari
+# =============================================================================
+
+groups:
+  # ===== Service Availability =====
+  - name: service_availability
+    rules:
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.job }} servisi ishlamayapti"
+          description: "{{ $labels.instance }} 1 daqiqadan ortiq javob bermayapti."
+
+      - alert: HealthCheckFailing
+        expr: probe_success == 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} health check muvaffaqiyatsiz"
+
+  # ===== High Error Rate =====
+  - name: error_rates
+    rules:
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} da yuqori xatolik darajasi (>5%)"
+          description: "{{ $labels.service }} 5 daqiqa ichida {{ $value | humanizePercentage }} xatolik darajasiga ega."
+
+      - alert: ErrorRateWarning
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} da xatolik darajasi oshdi (>1%)"
+
+  # ===== Latency =====
+  - name: latency
+    rules:
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} da yuqori kechikma (p95 > 2s)"
+          description: "{{ $labels.service }} ning 95-persentil javob vaqti {{ $value }}s"
+
+      - alert: VeryHighLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)
+          ) > 5
+        for: 3m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} da juda yuqori kechikma (p99 > 5s)"
+
+  # ===== Resource Usage =====
+  - name: resources
+    rules:
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 512 * 1024 * 1024
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.service }} yuqori xotira ishlatmoqda (>512MB)"
+          description: "{{ $labels.service }} {{ $value | humanize1024 }}B xotira ishlatmoqda"
+
+      - alert: ProcessRestarted
+        expr: changes(process_uptime_seconds[5m]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "{{ $labels.service }} qayta ishga tushdi"

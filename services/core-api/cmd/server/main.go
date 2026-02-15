@@ -64,13 +64,60 @@ func main() {
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware(cfg.CORSOrigins))
 	router.Use(middleware.RateLimitMiddleware(redisClient, cfg.RateLimitMax))
+	router.Use(middleware.MetricsMiddleware())
 
-	// Health check endpoint
+	// Prometheus metrics endpoint
+	router.GET("/metrics", middleware.MetricsHandler())
+
+	// Health check endpoint — deep (DB + Redis + ES)
 	router.GET("/health", func(c *gin.Context) {
-		response.OK(c, gin.H{
-			"status":  "ok",
+		checks := gin.H{}
+		healthy := true
+
+		// PostgreSQL check
+		if err := db.PingContext(c.Request.Context()); err != nil {
+			checks["postgres"] = "error"
+			healthy = false
+			log.Warn().Err(err).Msg("Health check: PostgreSQL ping failed")
+		} else {
+			checks["postgres"] = "ok"
+		}
+
+		// Redis check
+		if err := redisClient.Ping(c.Request.Context()).Err(); err != nil {
+			checks["redis"] = "error"
+			healthy = false
+			log.Warn().Err(err).Msg("Health check: Redis ping failed")
+		} else {
+			checks["redis"] = "ok"
+		}
+
+		// Elasticsearch check (optional)
+		if esClient != nil {
+			info, err := esClient.Info()
+			if err != nil || info.IsError() {
+				checks["elasticsearch"] = "error"
+				log.Warn().Err(err).Msg("Health check: Elasticsearch ping failed")
+			} else {
+				checks["elasticsearch"] = "ok"
+				info.Body.Close()
+			}
+		} else {
+			checks["elasticsearch"] = "disabled"
+		}
+
+		status := "ok"
+		httpStatus := http.StatusOK
+		if !healthy {
+			status = "degraded"
+			httpStatus = http.StatusServiceUnavailable
+		}
+
+		c.JSON(httpStatus, gin.H{
+			"status":  status,
 			"service": "core-api",
 			"version": cfg.AppVersion,
+			"checks":  checks,
 		})
 	})
 
