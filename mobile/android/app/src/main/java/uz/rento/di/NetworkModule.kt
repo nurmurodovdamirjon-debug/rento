@@ -10,6 +10,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import uz.rento.BuildConfig
 import uz.rento.data.remote.api.AuthApi
+import uz.rento.data.remote.api.ChatApi
 import uz.rento.data.remote.api.ListingApi
 import uz.rento.data.remote.api.UserApi
 import uz.rento.data.remote.interceptor.AuthInterceptor
@@ -100,5 +101,18 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(ListingApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideChatApi(
+        @Named("api") okHttpClient: OkHttpClient
+    ): ChatApi {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.CHAT_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ChatApi::class.java)
     }
 }
