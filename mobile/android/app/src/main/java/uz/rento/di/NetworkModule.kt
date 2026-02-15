@@ -10,6 +10,7 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import uz.rento.BuildConfig
 import uz.rento.data.remote.api.AuthApi
+import uz.rento.data.remote.api.ListingApi
 import uz.rento.data.remote.api.UserApi
 import uz.rento.data.remote.interceptor.AuthInterceptor
 import java.util.concurrent.TimeUnit
@@ -86,5 +87,18 @@ object NetworkModule {
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(UserApi::class.java)
+    }
+
+    @Provides
+    @Singleton
+    fun provideListingApi(
+        @Named("api") okHttpClient: OkHttpClient
+    ): ListingApi {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.API_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(ListingApi::class.java)
     }
 }

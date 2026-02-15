@@ -13,6 +13,8 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/rento/core-api/internal/config"
+	"github.com/rento/core-api/internal/listing"
+	"github.com/rento/core-api/internal/media"
 	"github.com/rento/core-api/internal/middleware"
 	"github.com/rento/core-api/internal/user"
 	"github.com/rento/core-api/pkg/database"
@@ -67,6 +69,22 @@ func main() {
 	userService := user.NewService(userRepo)
 	userHandler := user.NewHandler(userService)
 
+	// Listing module — repository → service → handler
+	listingRepo := listing.NewRepository(db, redisClient)
+	listingService := listing.NewService(listingRepo, redisClient)
+	listingHandler := listing.NewHandler(listingService)
+
+	// Media module — storage → service → handler
+	minioStorage, err := media.NewStorage(cfg.MinioEndpoint, cfg.MinioAccessKey, cfg.MinioSecretKey, cfg.MinioUseSSL)
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to connect MinIO")
+	}
+	if err := minioStorage.EnsureBuckets(context.Background()); err != nil {
+		log.Fatal().Err(err).Msg("Failed to ensure MinIO buckets")
+	}
+	mediaService := media.NewService(minioStorage)
+	mediaHandler := media.NewHandler(mediaService)
+
 	// Auth middleware
 	authMW := middleware.AuthMiddleware(cfg.JWTAccessSecret)
 
@@ -75,6 +93,12 @@ func main() {
 	{
 		// User routes (GET /users/me, PUT /users/me, GET /users/:id)
 		userHandler.RegisterRoutes(v1, authMW)
+
+		// Listing routes (CRUD + status + stats)
+		listingHandler.RegisterRoutes(v1, authMW)
+
+		// Media routes (POST /media/upload)
+		mediaHandler.RegisterRoutes(v1, authMW)
 	}
 
 	srv := &http.Server{
