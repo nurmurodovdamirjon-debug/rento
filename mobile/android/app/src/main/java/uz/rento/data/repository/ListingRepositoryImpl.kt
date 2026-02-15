@@ -1,5 +1,10 @@
 package uz.rento.data.repository
 
+import android.util.Log
+import uz.rento.data.local.dao.ListingDao
+import uz.rento.data.local.db.RentoDatabase
+import uz.rento.data.local.mapper.toDomain
+import uz.rento.data.local.mapper.toEntity
 import uz.rento.data.remote.api.ListingApi
 import uz.rento.data.remote.dto.CreateListingRequest
 import uz.rento.data.remote.dto.ListingDto
@@ -26,17 +31,25 @@ import javax.inject.Singleton
 
 @Singleton
 class ListingRepositoryImpl @Inject constructor(
-    private val listingApi: ListingApi
+    private val listingApi: ListingApi,
+    private val listingDao: ListingDao
 ) : ListingRepository {
+
+    companion object {
+        private const val TAG = "ListingRepo"
+    }
 
     override suspend fun getListings(filter: ListingFilter): Result<ListingsPage> {
         return try {
             val response = listingApi.getListings(filter.toQueryMap())
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                // Cache to Room
+                cacheListings(domainItems)
                 Result.success(
                     ListingsPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -49,7 +62,9 @@ class ListingRepositoryImpl @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda", e)
+            // Offline fallback: load from Room cache
+            loadListingsFromCache(filter)
         }
     }
 
@@ -57,14 +72,17 @@ class ListingRepositoryImpl @Inject constructor(
         return try {
             val response = listingApi.getListing(id)
             if (response.success && response.data != null) {
-                Result.success(response.data.toDomain())
+                val listing = response.data.toDomain()
+                cacheListings(listOf(listing))
+                Result.success(listing)
             } else {
                 Result.failure(
                     Exception(response.error?.message ?: "E'lonni olishda xatolik")
                 )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda: $id", e)
+            loadListingFromCache(id)
         }
     }
 
@@ -236,9 +254,11 @@ class ListingRepositoryImpl @Inject constructor(
             val response = listingApi.getMyListings(filter.toQueryMap())
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                cacheListings(domainItems)
                 Result.success(
                     ListingsPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -251,7 +271,8 @@ class ListingRepositoryImpl @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda (my)", e)
+            loadListingsFromCache(filter)
         }
     }
 
@@ -260,9 +281,11 @@ class ListingRepositoryImpl @Inject constructor(
             val response = listingApi.searchListings(filter.toQueryMap())
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                cacheListings(domainItems)
                 Result.success(
                     ListingsPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -275,7 +298,14 @@ class ListingRepositoryImpl @Inject constructor(
                 )
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda (search)", e)
+            loadListingsFromCache(
+                ListingFilter(
+                    city = filter.city,
+                    page = filter.page,
+                    perPage = filter.perPage
+                )
+            )
         }
     }
 
@@ -284,9 +314,14 @@ class ListingRepositoryImpl @Inject constructor(
             val response = listingApi.getNearbyListings(filter.toQueryMap())
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                // Cache underlying listings
+                domainItems.forEach { nearby ->
+                    cacheListings(listOf(nearby.listing))
+                }
                 Result.success(
                     NearbyListingsPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -300,6 +335,75 @@ class ListingRepositoryImpl @Inject constructor(
             }
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    // ===== Offline Cache Helpers =====
+
+    private suspend fun cacheListings(listings: List<Listing>) {
+        try {
+            listingDao.deleteOldCache(System.currentTimeMillis() - RentoDatabase.CACHE_TTL_MS)
+            listings.forEach { listing ->
+                val entity = listing.toEntity()
+                val imageEntities = listing.images.map { it.toEntity(listing.id) }
+                listingDao.insertListingWithImages(entity, imageEntities)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Keshga saqlashda xato", e)
+        }
+    }
+
+    private suspend fun loadListingsFromCache(filter: ListingFilter): Result<ListingsPage> {
+        return try {
+            val expiry = System.currentTimeMillis() - RentoDatabase.CACHE_TTL_MS
+            val offset = ((filter.page ?: 1) - 1) * (filter.perPage ?: 20)
+            val limit = filter.perPage ?: 20
+
+            val entities = if (filter.city != null) {
+                listingDao.getListingsByCity(filter.city!!, expiry, limit, offset)
+            } else {
+                listingDao.getListings(expiry, limit, offset)
+            }
+
+            if (entities.isEmpty()) {
+                return Result.failure(Exception("Keshda ma'lumot yo'q va internet mavjud emas"))
+            }
+
+            val listingIds = entities.map { it.id }
+            val imageEntities = listingDao.getImagesByListingIds(listingIds)
+            val imageMap = imageEntities.groupBy { it.listingId }
+
+            val items = entities.map { entity ->
+                val images = imageMap[entity.id]?.map { it.toDomain() } ?: emptyList()
+                entity.toDomain(images)
+            }
+
+            val total = listingDao.getListingsCount(expiry)
+            Result.success(
+                ListingsPage(
+                    items = items,
+                    page = filter.page ?: 1,
+                    perPage = limit,
+                    total = total,
+                    totalPages = (total + limit - 1) / limit
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Keshdan o'qishda xato", e)
+            Result.failure(Exception("Offline ma'lumotlarni olishda xatolik"))
+        }
+    }
+
+    private suspend fun loadListingFromCache(id: String): Result<Listing> {
+        return try {
+            val entity = listingDao.getListingById(id)
+                ?: return Result.failure(Exception("Keshda e'lon topilmadi"))
+            val imageEntities = listingDao.getImages(id)
+            val images = imageEntities.map { it.toDomain() }
+            Result.success(entity.toDomain(images))
+        } catch (e: Exception) {
+            Log.e(TAG, "Keshdan o'qishda xato: $id", e)
+            Result.failure(Exception("Offline ma'lumotni olishda xatolik"))
         }
     }
 }

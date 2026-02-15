@@ -1,0 +1,431 @@
+# ====================================================
+# RENTO — Production Docker Compose
+# ====================================================
+# Ishga tushirish:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# Muhit o'zgaruvchilari: .env.production faylidan o'qiladi
+# ====================================================
+
+services:
+  # ===== DATABASE =====
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: rento-postgres
+    restart: always
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+      - ./backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    networks:
+      - backend
+
+  # ===== CACHE =====
+  redis:
+    image: redis:7-alpine
+    container_name: rento-redis
+    restart: always
+    expose:
+      - "6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD} --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - backend
+
+  # ===== SEARCH =====
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    container_name: rento-elasticsearch
+    restart: always
+    expose:
+      - "9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+      - xpack.security.transport.ssl.enabled=false
+      - ELASTIC_PASSWORD=${ES_PASSWORD}
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1g"
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -u elastic:${ES_PASSWORD} http://localhost:9200/_cluster/health | grep -vq '\"status\":\"red\"'"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+    networks:
+      - backend
+
+  # ===== OBJECT STORAGE =====
+  minio:
+    image: minio/minio:latest
+    container_name: rento-minio
+    restart: always
+    expose:
+      - "9000"
+    ports:
+      - "127.0.0.1:9001:9001"  # Console faqat localhost uchun
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - miniodata:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - backend
+
+  # ===== MESSAGE QUEUE =====
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rento-rabbitmq
+    restart: always
+    expose:
+      - "5672"
+    ports:
+      - "127.0.0.1:15672:15672"  # Management faqat localhost
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - backend
+
+  # ===== AUTH SERVICE =====
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: rento-auth
+    restart: always
+    expose:
+      - "3001"
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+      replicas: 2
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - backend
+
+  # ===== CORE API =====
+  core-api:
+    build:
+      context: ./services/core-api
+      dockerfile: Dockerfile
+    container_name: rento-core-api
+    restart: always
+    expose:
+      - "3002"
+    env_file:
+      - .env.production
+    environment:
+      GIN_MODE: release
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      ES_URL: http://elasticsearch:9200
+      ES_PASSWORD: ${ES_PASSWORD}
+      MINIO_ENDPOINT: minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+      replicas: 2
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - backend
+
+  # ===== CHAT SERVICE =====
+  chat-service:
+    build:
+      context: ./services/chat-service
+      dockerfile: Dockerfile
+    container_name: rento-chat
+    restart: always
+    expose:
+      - "3003"
+    env_file:
+      - .env.production
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+      replicas: 1  # WebSocket — sticky session kerak
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3003/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - backend
+
+  # ===== NGINX GATEWAY =====
+  nginx:
+    image: nginx:alpine
+    container_name: rento-nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./gateway/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./gateway/ssl:/etc/nginx/ssl:ro
+      - /var/log/nginx:/var/log/nginx
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+      chat-service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost/nginx-health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "10"
+    networks:
+      - backend
+      - frontend
+
+  # ===== MONITORING — Prometheus =====
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: rento-prometheus
+    restart: always
+    expose:
+      - "9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheusdata:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
+      - '--web.enable-lifecycle'
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+    networks:
+      - backend
+
+  # ===== MONITORING — Grafana =====
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: rento-grafana
+    restart: always
+    ports:
+      - "127.0.0.1:3100:3000"  # Faqat localhost orqali
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - backend
+
+  # ===== MONITORING — AlertManager =====
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: rento-alertmanager
+    restart: always
+    expose:
+      - "9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    networks:
+      - backend
+
+  # ===== DATABASE BACKUP =====
+  db-backup:
+    image: postgres:16-alpine
+    container_name: rento-db-backup
+    restart: always
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB}
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_RETENTION_DAYS: "30"
+    volumes:
+      - ./backups:/backups
+      - ./scripts/backup.sh:/scripts/backup.sh:ro
+    entrypoint: ["/bin/sh", "-c", "chmod +x /scripts/backup.sh && while true; do /scripts/backup.sh; sleep 21600; done"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+    networks:
+      - backend
+
+volumes:
+  pgdata:
+    driver: local
+  redisdata:
+    driver: local
+  esdata:
+    driver: local
+  miniodata:
+    driver: local
+  rabbitmqdata:
+    driver: local
+  prometheusdata:
+    driver: local
+  grafanadata:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge
+    internal: true
+  frontend:
+    driver: bridge

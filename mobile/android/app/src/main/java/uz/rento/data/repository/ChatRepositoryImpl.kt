@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import org.json.JSONObject
 import uz.rento.BuildConfig
+import uz.rento.data.local.dao.ChatDao
+import uz.rento.data.local.db.RentoDatabase
+import uz.rento.data.local.mapper.toDomain
+import uz.rento.data.local.mapper.toEntity
 import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.data.remote.api.ChatApi
 import uz.rento.data.remote.dto.ChatListingDto
@@ -40,7 +44,8 @@ import javax.inject.Singleton
 @Singleton
 class ChatRepositoryImpl @Inject constructor(
     private val chatApi: ChatApi,
-    private val userPreferences: UserPreferences
+    private val userPreferences: UserPreferences,
+    private val chatDao: ChatDao
 ) : ChatRepository {
 
     companion object {
@@ -87,9 +92,12 @@ class ChatRepositoryImpl @Inject constructor(
             val response = chatApi.getChats(page, perPage)
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                // Cache chat rooms
+                cacheChatRooms(domainItems)
                 Result.success(
                     ChatsPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -100,7 +108,8 @@ class ChatRepositoryImpl @Inject constructor(
                 Result.failure(Exception(response.error?.message ?: "Chatlarni olishda xatolik"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda (chats)", e)
+            loadChatsFromCache(page, perPage)
         }
     }
 
@@ -109,9 +118,12 @@ class ChatRepositoryImpl @Inject constructor(
             val response = chatApi.getMessages(roomId, page, perPage)
             if (response.success && response.data != null) {
                 val data = response.data
+                val domainItems = data.items.map { it.toDomain() }
+                // Cache messages
+                cacheMessages(domainItems)
                 Result.success(
                     MessagesPage(
-                        items = data.items.map { it.toDomain() },
+                        items = domainItems,
                         page = data.meta.page,
                         perPage = data.meta.perPage,
                         total = data.meta.total,
@@ -122,7 +134,8 @@ class ChatRepositoryImpl @Inject constructor(
                 Result.failure(Exception(response.error?.message ?: "Xabarlarni olishda xatolik"))
             }
         } catch (e: Exception) {
-            Result.failure(e)
+            Log.w(TAG, "Network xato, keshdan o'qilmoqda (messages)", e)
+            loadMessagesFromCache(roomId, page, perPage)
         }
     }
 
@@ -213,6 +226,10 @@ class ChatRepositoryImpl @Inject constructor(
                 on("new_message") { args ->
                     parseMessage(args)?.let { msg ->
                         _incomingMessages.tryEmit(msg)
+                        // Cache incoming message
+                        kotlinx.coroutines.runBlocking {
+                            try { cacheMessages(listOf(msg)) } catch (_: Exception) {}
+                        }
                     }
                 }
 
@@ -325,6 +342,69 @@ class ChatRepositoryImpl @Inject constructor(
             put("room_id", roomId)
             put("message_id", messageId)
         })
+    }
+
+    // ===== Offline Cache Helpers =====
+
+    private suspend fun cacheChatRooms(rooms: List<ChatRoom>) {
+        try {
+            chatDao.insertChatRooms(rooms.map { it.toEntity() })
+        } catch (e: Exception) {
+            Log.e(TAG, "Chatlarni keshga saqlashda xato", e)
+        }
+    }
+
+    private suspend fun cacheMessages(messages: List<Message>) {
+        try {
+            chatDao.deleteOldMessages(System.currentTimeMillis() - RentoDatabase.MESSAGE_CACHE_TTL_MS)
+            chatDao.insertMessages(messages.map { it.toEntity() })
+        } catch (e: Exception) {
+            Log.e(TAG, "Xabarlarni keshga saqlashda xato", e)
+        }
+    }
+
+    private suspend fun loadChatsFromCache(page: Int, perPage: Int): Result<ChatsPage> {
+        return try {
+            val offset = (page - 1) * perPage
+            val entities = chatDao.getChatRooms(perPage, offset)
+            if (entities.isEmpty()) {
+                return Result.failure(Exception("Keshda chatlar yo'q va internet mavjud emas"))
+            }
+            Result.success(
+                ChatsPage(
+                    items = entities.map { it.toDomain() },
+                    page = page,
+                    perPage = perPage,
+                    total = entities.size,
+                    totalPages = 1
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Keshdan chatlarni o'qishda xato", e)
+            Result.failure(Exception("Offline chatlarni olishda xatolik"))
+        }
+    }
+
+    private suspend fun loadMessagesFromCache(roomId: String, page: Int, perPage: Int): Result<MessagesPage> {
+        return try {
+            val offset = (page - 1) * perPage
+            val entities = chatDao.getMessages(roomId, perPage, offset)
+            if (entities.isEmpty()) {
+                return Result.failure(Exception("Keshda xabarlar yo'q va internet mavjud emas"))
+            }
+            Result.success(
+                MessagesPage(
+                    items = entities.map { it.toDomain() },
+                    page = page,
+                    perPage = perPage,
+                    total = entities.size,
+                    totalPages = 1
+                )
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Keshdan xabarlarni o'qishda xato", e)
+            Result.failure(Exception("Offline xabarlarni olishda xatolik"))
+        }
     }
 
     // ===== Helpers =====

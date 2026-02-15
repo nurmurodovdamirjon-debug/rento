@@ -6,6 +6,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import uz.rento.data.local.dao.ChatDao
+import uz.rento.data.local.dao.FavoriteDao
+import uz.rento.data.local.dao.ListingDao
+import uz.rento.data.local.dao.UserDao
 import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.data.remote.api.AuthApi
 import uz.rento.data.remote.api.ChatApi
@@ -51,34 +55,38 @@ object AppModule {
     @Provides
     @Singleton
     fun provideUserRepository(
-        userApi: UserApi
+        userApi: UserApi,
+        userDao: UserDao
     ): UserRepository {
-        return UserRepositoryImpl(userApi)
+        return UserRepositoryImpl(userApi, userDao)
     }
 
     @Provides
     @Singleton
     fun provideListingRepository(
-        listingApi: ListingApi
+        listingApi: ListingApi,
+        listingDao: ListingDao
     ): ListingRepository {
-        return ListingRepositoryImpl(listingApi)
+        return ListingRepositoryImpl(listingApi, listingDao)
     }
 
     @Provides
     @Singleton
     fun provideChatRepository(
         chatApi: ChatApi,
-        userPreferences: UserPreferences
+        userPreferences: UserPreferences,
+        chatDao: ChatDao
     ): ChatRepository {
-        return ChatRepositoryImpl(chatApi, userPreferences)
+        return ChatRepositoryImpl(chatApi, userPreferences, chatDao)
     }
 
     @Provides
     @Singleton
     fun provideFavoriteRepository(
-        favoriteApi: FavoriteApi
+        favoriteApi: FavoriteApi,
+        favoriteDao: FavoriteDao
     ): FavoriteRepository {
-        return FavoriteRepositoryImpl(favoriteApi)
+        return FavoriteRepositoryImpl(favoriteApi, favoriteDao)
     }
 
     @Provides

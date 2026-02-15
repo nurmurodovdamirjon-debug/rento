@@ -107,6 +107,12 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 
+    // Room — offline cache
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    kapt("androidx.room:room-compiler:$roomVersion")
+
     // DataStore (preferences)
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 

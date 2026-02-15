@@ -1,0 +1,558 @@
+{
+  "info": {
+    "name": "RENTO API",
+    "description": "RENTO ijaraga berish platformasi — barcha API endpointlar",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:80", "type": "string" },
+    { "key": "authUrl", "value": "http://localhost:3001", "type": "string" },
+    { "key": "apiUrl", "value": "http://localhost:3002", "type": "string" },
+    { "key": "chatUrl", "value": "http://localhost:3003", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "listingId", "value": "", "type": "string" },
+    { "key": "chatRoomId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Checks",
+      "item": [
+        {
+          "name": "Auth Service Health",
+          "request": {
+            "method": "GET",
+            "url": "{{authUrl}}/health",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Core API Health",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/health",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Chat Service Health",
+          "request": {
+            "method": "GET",
+            "url": "{{chatUrl}}/health",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Nginx Health",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/nginx-health",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01. Auth",
+      "item": [
+        {
+          "name": "Send OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Success true', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{authUrl}}/api/auth/send-otp",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+998901234567\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.environment.set('accessToken', json.data.accessToken);",
+                  "  pm.environment.set('refreshToken', json.data.refreshToken);",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', json.data.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{authUrl}}/api/auth/verify-otp",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+998901234567\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.accessToken) {",
+                  "  pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{authUrl}}/api/auth/refresh",
+            "auth": { "type": "noauth" },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{authUrl}}/api/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. User Profile",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has user data', () => {",
+                  "  pm.expect(json.data).to.have.property('id');",
+                  "  pm.expect(json.data).to.have.property('phone');",
+                  "});",
+                  "pm.collectionVariables.set('userId', json.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/users/me"
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/users/me",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Test User\",\n  \"email\": \"test@rento.uz\",\n  \"language\": \"uz\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Public Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/users/{{userId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Listings",
+      "item": [
+        {
+          "name": "Create Listing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('listingId', json.data.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{apiUrl}}/api/listings",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"apartment\",\n  \"dealType\": \"rent\",\n  \"city\": \"tashkent\",\n  \"district\": \"Chilonzor\",\n  \"address\": \"Chilonzor 7-kvartal\",\n  \"rooms\": 2,\n  \"floor\": 4,\n  \"totalFloors\": 9,\n  \"areaSqm\": 55,\n  \"price\": 5500000,\n  \"currency\": \"UZS\",\n  \"priceNegotiable\": true,\n  \"hasFurniture\": true,\n  \"title\": \"2 xonali kvartira ijaraga\",\n  \"description\": \"Yaxshi tamirli, metroga yaqin\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Listings",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Has items array', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.data.items).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{apiUrl}}/api/listings?city=tashkent&page=1&perPage=20",
+              "host": ["{{apiUrl}}"],
+              "path": ["api", "listings"],
+              "query": [
+                { "key": "city", "value": "tashkent" },
+                { "key": "page", "value": "1" },
+                { "key": "perPage", "value": "20" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Listing by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/listings/{{listingId}}"
+          }
+        },
+        {
+          "name": "Get My Listings",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/listings/my"
+          }
+        },
+        {
+          "name": "Search Listings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{apiUrl}}/api/listings/search?query=kvartira&city=tashkent",
+              "host": ["{{apiUrl}}"],
+              "path": ["api", "listings", "search"],
+              "query": [
+                { "key": "query", "value": "kvartira" },
+                { "key": "city", "value": "tashkent" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Nearby Listings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{apiUrl}}/api/listings/nearby?latitude=41.2867&longitude=69.2072&radiusKm=5",
+              "host": ["{{apiUrl}}"],
+              "path": ["api", "listings", "nearby"],
+              "query": [
+                { "key": "latitude", "value": "41.2867" },
+                { "key": "longitude", "value": "69.2072" },
+                { "key": "radiusKm", "value": "5" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Listing",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/listings/{{listingId}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Yangilangan sarlavha\",\n  \"price\": 6000000\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Listing",
+          "request": {
+            "method": "DELETE",
+            "url": "{{apiUrl}}/api/listings/{{listingId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Favorites",
+      "item": [
+        {
+          "name": "Toggle Favorite",
+          "request": {
+            "method": "POST",
+            "url": "{{apiUrl}}/api/favorites/{{listingId}}/toggle"
+          }
+        },
+        {
+          "name": "Get Favorites",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/favorites"
+          }
+        },
+        {
+          "name": "Check Favorite",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/favorites/{{listingId}}/check"
+          }
+        },
+        {
+          "name": "Get Favorite IDs",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/favorites/ids"
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Chat",
+      "item": [
+        {
+          "name": "Create Chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.data) {",
+                  "  pm.collectionVariables.set('chatRoomId', json.data.roomId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{chatUrl}}/api/chats",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"listingId\": \"{{listingId}}\",\n  \"initialMessage\": \"Salom! Bu uy hali bandmi?\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Chats",
+          "request": {
+            "method": "GET",
+            "url": "{{chatUrl}}/api/chats"
+          }
+        },
+        {
+          "name": "Get Messages",
+          "request": {
+            "method": "GET",
+            "url": "{{chatUrl}}/api/chats/{{chatRoomId}}/messages"
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "url": "{{chatUrl}}/api/chats/{{chatRoomId}}/messages",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Test xabar\",\n  \"messageType\": \"text\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PUT",
+            "url": "{{chatUrl}}/api/chats/{{chatRoomId}}/read"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Reports",
+      "item": [
+        {
+          "name": "Create Report",
+          "request": {
+            "method": "POST",
+            "url": "{{apiUrl}}/api/reports",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"targetType\": \"listing\",\n  \"targetId\": \"{{listingId}}\",\n  \"reason\": \"spam\",\n  \"description\": \"Spam e'lon\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/reports"
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/notifications"
+          }
+        },
+        {
+          "name": "Get Unread Count",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/notifications/unread-count"
+          }
+        },
+        {
+          "name": "Mark as Read",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/notifications/{{notificationId}}/read"
+          }
+        },
+        {
+          "name": "Mark All as Read",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/notifications/read-all"
+          }
+        },
+        {
+          "name": "Register FCM Token",
+          "request": {
+            "method": "POST",
+            "url": "{{apiUrl}}/api/notifications/fcm-token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"test-fcm-token\",\n  \"deviceType\": \"android\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Admin",
+      "item": [
+        {
+          "name": "Get Pending Listings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{apiUrl}}/api/admin/listings?status=pending",
+              "host": ["{{apiUrl}}"],
+              "path": ["api", "admin", "listings"],
+              "query": [
+                { "key": "status", "value": "pending" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Approve Listing",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/admin/listings/{{listingId}}/approve"
+          }
+        },
+        {
+          "name": "Reject Listing",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/admin/listings/{{listingId}}/reject",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Rasm sifati past\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Block User",
+          "request": {
+            "method": "PUT",
+            "url": "{{apiUrl}}/api/admin/users/{{userId}}/block",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Qoidalar buzilishi\",\n  \"duration\": \"7d\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Reports (Admin)",
+          "request": {
+            "method": "GET",
+            "url": "{{apiUrl}}/api/admin/reports"
+          }
+        }
+      ]
+    }
+  ]
+}
