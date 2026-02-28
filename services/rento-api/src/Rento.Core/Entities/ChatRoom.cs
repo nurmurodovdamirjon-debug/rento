@@ -16,5 +16,5 @@ public class ChatRoom
     public Listing Listing { get; set; } = null!;
     public User Tenant { get; set; } = null!;
     public User Landlord { get; set; } = null!;
-    public ICollection<Message> Messages { get; set; } = new List<Message>();
+    public ICollection<Message> Messages { get; set; } = [];
 }

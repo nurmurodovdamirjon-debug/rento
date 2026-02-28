@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using Rento.Core.Common;
 
 namespace Rento.Core.Entities;
 
@@ -7,11 +8,11 @@ public class Report
 {
     public Guid Id { get; set; }
     public Guid ReporterId { get; set; }
-    public string TargetType { get; set; } = "";
+    public required string TargetType { get; set; }
     public Guid TargetId { get; set; }
-    public string Reason { get; set; } = "";
+    public required string Reason { get; set; }
     public string? Description { get; set; }
-    public string Status { get; set; } = "pending";
+    public string Status { get; set; } = ReportStatus.Pending;
     public string? AdminNote { get; set; }
     public Guid? ResolvedBy { get; set; }
     public DateTime? ResolvedAt { get; set; }

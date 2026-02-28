@@ -14,6 +14,9 @@ public static class DependencyInjection
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IListingService, ListingService>();
         services.AddScoped<IFavoriteService, FavoriteService>();
+        services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IReportService, ReportService>();
         services.AddValidatorsFromAssemblyContaining<SendOtpRequestValidator>();
         return services;
     }

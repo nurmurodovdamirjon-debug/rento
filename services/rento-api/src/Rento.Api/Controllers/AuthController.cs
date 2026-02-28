@@ -1,5 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Rento.Api.Extensions;
 using Rento.Application.DTOs.Auth;
 using Rento.Application.Services;
 using Rento.Core.Common;
@@ -18,6 +18,8 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("send-otp")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status429TooManyRequests)]
     public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest request, CancellationToken ct)
     {
         try
@@ -36,6 +38,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("verify-otp")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> VerifyOtp([FromBody] VerifyOtpRequest request, CancellationToken ct)
     {
         try
@@ -72,6 +77,9 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh-token")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
         try
@@ -99,13 +107,15 @@ public class AuthController : ControllerBase
 
     [HttpPost("logout")]
     [Microsoft.AspNetCore.Authorization.Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Logout(CancellationToken ct)
     {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        var userId = User.GetUserId();
+        if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
 
-        await _authService.LogoutAsync(userId, ct);
+        await _authService.LogoutAsync(userId.Value, ct);
         return NoContent();
     }
 }

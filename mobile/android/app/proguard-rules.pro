@@ -27,9 +27,9 @@
 -keepattributes *Annotation*, InnerClasses
 -dontnote kotlinx.serialization.AnnotationsKt
 
-# Socket.IO
--keep class io.socket.** { *; }
--dontwarn io.socket.**
+# SignalR (C# backend chat)
+-keep class com.microsoft.signalr.** { *; }
+-dontwarn com.microsoft.signalr.**
 
 # Room
 -keep class * extends androidx.room.RoomDatabase

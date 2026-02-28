@@ -21,35 +21,15 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # Core API (Go)
-  - job_name: "core-api"
+  # Rento API (C# .NET)
+  - job_name: "rento-api"
     metrics_path: /metrics
     scrape_interval: 10s
     static_configs:
-      - targets: ["core-api:3002"]
+      - targets: ["rento-api:5000"]
         labels:
-          service: "core-api"
-          language: "go"
-
-  # Auth Service (Node.js)
-  - job_name: "auth-service"
-    metrics_path: /metrics
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["auth-service:3001"]
-        labels:
-          service: "auth-service"
-          language: "nodejs"
-
-  # Chat Service (Node.js)
-  - job_name: "chat-service"
-    metrics_path: /metrics
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["chat-service:3003"]
-        labels:
-          service: "chat-service"
-          language: "nodejs"
+          service: "rento-api"
+          language: "csharp"
 
   # PostgreSQL (agar postgres-exporter qo'shilsa)
   # - job_name: "postgres"
@@ -66,12 +46,10 @@ scrape_configs:
   #   static_configs:
   #     - targets: ["nginx-exporter:9113"]
 
-  # Node health checks
+  # Health checks
   - job_name: "health-checks"
     metrics_path: /health
     scrape_interval: 30s
     static_configs:
       - targets:
-          - "auth-service:3001"
-          - "core-api:3002"
-          - "chat-service:3003"
+          - "rento-api:5000"

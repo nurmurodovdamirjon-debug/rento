@@ -92,42 +92,25 @@ services:
       timeout: 10s
       retries: 5
 
-  # ===== AUTH SERVICE (Node.js) =====
-  auth-service:
+  # ===== RENTO API (C# .NET 8) =====
+  rento-api:
     build:
-      context: ./services/auth-service
+      context: ./services/rento-api
       dockerfile: Dockerfile
-    container_name: rento-auth
+    container_name: rento-api
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "5000:5000"
     env_file:
       - .env
     environment:
-      DB_HOST: postgres
-      REDIS_HOST: redis
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  # ===== CORE API (Go) =====
-  core-api:
-    build:
-      context: ./services/core-api
-      dockerfile: Dockerfile
-    container_name: rento-core-api
-    restart: unless-stopped
-    ports:
-      - "3002:3002"
-    env_file:
-      - .env
-    environment:
-      DB_HOST: postgres
-      REDIS_HOST: redis
-      ES_URL: http://elasticsearch:9200
-      MINIO_ENDPOINT: minio:9000
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=rento;Username=${POSTGRES_USER:-rento_user};Password=${POSTGRES_PASSWORD:-rento_secret_password};SSL Mode=Disable"
+      Redis__Configuration: "redis:6379"
+      MinIO__Endpoint: "minio:9000"
+      MinIO__AccessKey: "${MINIO_ROOT_USER:-minioadmin}"
+      MinIO__SecretKey: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      Elasticsearch__Url: "http://elasticsearch:9200"
+      ASPNETCORE_ENVIRONMENT: "Production"
     depends_on:
       postgres:
         condition: service_healthy
@@ -136,26 +119,6 @@ services:
       elasticsearch:
         condition: service_healthy
       minio:
-        condition: service_healthy
-
-  # ===== CHAT SERVICE (Node.js + WebSocket) =====
-  chat-service:
-    build:
-      context: ./services/chat-service
-      dockerfile: Dockerfile
-    container_name: rento-chat
-    restart: unless-stopped
-    ports:
-      - "3003:3003"
-    env_file:
-      - .env
-    environment:
-      DB_HOST: postgres
-      REDIS_HOST: redis
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   # ===== NGINX GATEWAY =====
@@ -169,9 +132,7 @@ services:
     volumes:
       - ./gateway/nginx.dev.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - auth-service
-      - core-api
-      - chat-service
+      - rento-api
 
   # ===== MONITORING — Prometheus =====
   prometheus:
@@ -192,9 +153,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
     depends_on:
-      - auth-service
-      - core-api
-      - chat-service
+      - rento-api
 
   # ===== MONITORING — Grafana =====
   grafana:

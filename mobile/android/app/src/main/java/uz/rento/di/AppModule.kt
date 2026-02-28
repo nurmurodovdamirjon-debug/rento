@@ -17,6 +17,7 @@ import uz.rento.data.remote.api.FavoriteApi
 import uz.rento.data.remote.api.ListingApi
 import uz.rento.data.remote.api.NotificationApi
 import uz.rento.data.remote.api.UserApi
+import com.google.gson.Gson
 import uz.rento.data.repository.AuthRepositoryImpl
 import uz.rento.data.repository.ChatRepositoryImpl
 import uz.rento.data.repository.FavoriteRepositoryImpl
@@ -41,6 +42,12 @@ object AppModule {
         @ApplicationContext context: Context
     ): UserPreferences {
         return UserPreferences(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGson(): Gson {
+        return Gson()
     }
 
     @Provides
@@ -75,9 +82,10 @@ object AppModule {
     fun provideChatRepository(
         chatApi: ChatApi,
         userPreferences: UserPreferences,
-        chatDao: ChatDao
+        chatDao: ChatDao,
+        gson: Gson
     ): ChatRepository {
-        return ChatRepositoryImpl(chatApi, userPreferences, chatDao)
+        return ChatRepositoryImpl(chatApi, userPreferences, chatDao, gson)
     }
 
     @Provides

@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rento.Api.Extensions;
 using Rento.Application.Services;
 using Rento.Core.Common;
 
@@ -15,16 +15,12 @@ public class FavoritesController : ControllerBase
 
     public FavoritesController(IFavoriteService favoriteService) => _favoriteService = favoriteService;
 
-    private Guid? GetUserId()
-    {
-        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var id) ? id : null;
-    }
-
     [HttpPost("{listingId}")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Toggle(Guid listingId, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var result = await _favoriteService.ToggleAsync(userId.Value, listingId, ct);
@@ -32,9 +28,11 @@ public class FavoritesController : ControllerBase
     }
 
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetList([FromQuery] int page = 1, [FromQuery(Name = "per_page")] int perPage = 20, CancellationToken ct = default)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var result = await _favoriteService.GetListAsync(userId.Value, page, perPage, ct);
@@ -46,9 +44,11 @@ public class FavoritesController : ControllerBase
     }
 
     [HttpGet("check/{listingId}")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Check(Guid listingId, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var isFav = await _favoriteService.CheckAsync(userId.Value, listingId, ct);
@@ -56,9 +56,11 @@ public class FavoritesController : ControllerBase
     }
 
     [HttpGet("ids")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetIds(CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var ids = await _favoriteService.GetIdsAsync(userId.Value, ct);

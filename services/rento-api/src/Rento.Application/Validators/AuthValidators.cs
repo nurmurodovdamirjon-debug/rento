@@ -3,13 +3,19 @@ using Rento.Application.DTOs.Auth;
 
 namespace Rento.Application.Validators;
 
+internal static class AuthValidationRules
+{
+    public const string UzbekistanPhonePattern = @"^\+998\d{9}$";
+    public const string UzbekistanPhoneMessage = "Phone must be 13 characters: +998XXXXXXXXX";
+}
+
 public class SendOtpRequestValidator : AbstractValidator<SendOtpRequest>
 {
     public SendOtpRequestValidator()
     {
         RuleFor(x => x.Phone)
-            .Matches(@"^\+998\d{9}$")
-            .WithMessage("Phone must be 13 characters: +998XXXXXXXXX");
+            .Matches(AuthValidationRules.UzbekistanPhonePattern)
+            .WithMessage(AuthValidationRules.UzbekistanPhoneMessage);
     }
 }
 
@@ -18,8 +24,8 @@ public class VerifyOtpRequestValidator : AbstractValidator<VerifyOtpRequest>
     public VerifyOtpRequestValidator()
     {
         RuleFor(x => x.Phone)
-            .Matches(@"^\+998\d{9}$")
-            .WithMessage("Phone must be 13 characters: +998XXXXXXXXX");
+            .Matches(AuthValidationRules.UzbekistanPhonePattern)
+            .WithMessage(AuthValidationRules.UzbekistanPhoneMessage);
         RuleFor(x => x.Otp)
             .Length(6)
             .Matches(@"^\d{6}$")

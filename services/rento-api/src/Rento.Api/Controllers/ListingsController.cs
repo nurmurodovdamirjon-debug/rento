@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rento.Api.Extensions;
 using Rento.Application.DTOs.Listings;
 using Rento.Application.Services;
 using Rento.Core.Common;
@@ -18,16 +18,11 @@ public class ListingsController : ControllerBase
         _listingService = listingService;
     }
 
-    private Guid? GetUserId()
-    {
-        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var id) ? id : null;
-    }
-
     [HttpGet]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetListings([FromQuery] ListingFilter filter, CancellationToken ct)
     {
-        var result = await _listingService.GetListingsAsync(filter ?? new ListingFilter(), ct);
+        var result = await _listingService.GetListingsAsync(filter, ct);
         return Ok(new ApiResponse
         {
             Success = true,
@@ -36,9 +31,10 @@ public class ListingsController : ControllerBase
     }
 
     [HttpGet("search")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Search([FromQuery] SearchFilter filter, CancellationToken ct)
     {
-        var result = await _listingService.SearchAsync(filter ?? new SearchFilter(), ct);
+        var result = await _listingService.SearchAsync(filter, ct);
         return Ok(new ApiResponse
         {
             Success = true,
@@ -47,9 +43,10 @@ public class ListingsController : ControllerBase
     }
 
     [HttpGet("nearby")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetNearby([FromQuery] NearbyFilter filter, CancellationToken ct)
     {
-        var result = await _listingService.GetNearbyAsync(filter ?? new NearbyFilter(), ct);
+        var result = await _listingService.GetNearbyAsync(filter, ct);
         return Ok(new ApiResponse
         {
             Success = true,
@@ -59,9 +56,11 @@ public class ListingsController : ControllerBase
 
     [HttpGet("my")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> GetMy([FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int per_page = 20, CancellationToken ct = default)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var result = await _listingService.GetMyListingsAsync(userId.Value, status, page, per_page, ct);
@@ -73,13 +72,16 @@ public class ListingsController : ControllerBase
     }
 
     [HttpGet("{id}")]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetById(string id, CancellationToken ct)
     {
         if (string.Equals(id, "my", StringComparison.OrdinalIgnoreCase))
             return RedirectToAction(nameof(GetMy));
         if (!Guid.TryParse(id, out var guid))
             return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.InvalidId, Message = "Invalid id" } });
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         var listing = await _listingService.GetByIdAsync(guid, userId, ct);
         if (listing == null)
             return NotFound(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ListingNotFound, Message = "Listing not found" } });
@@ -88,12 +90,19 @@ public class ListingsController : ControllerBase
 
     [HttpPost]
     [Authorize]
-    public async Task<IActionResult> Create([FromBody] CreateListingRequest request, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status429TooManyRequests)]
+    public async Task<IActionResult> Create([FromBody] CreateListingRequest? request, CancellationToken ct)
     {
-        var userId = GetUserId();
+        if (request is null)
+            return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "request body is required" } });
+
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
-        var listing = await _listingService.CreateAsync(userId.Value, request ?? new CreateListingRequest(), ct);
+        var listing = await _listingService.CreateAsync(userId.Value, request, ct);
         if (listing == null)
             return StatusCode(429, new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.RateLimitExceeded, Message = "Daily listing limit exceeded" } });
         return StatusCode(201, new ApiResponse { Success = true, Data = listing });
@@ -101,12 +110,19 @@ public class ListingsController : ControllerBase
 
     [HttpPut("{id}")]
     [Authorize]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateListingRequest request, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateListingRequest? request, CancellationToken ct)
     {
-        var userId = GetUserId();
+        if (request is null)
+            return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "request body is required" } });
+
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
-        var listing = await _listingService.UpdateAsync(id, userId.Value, request ?? new UpdateListingRequest(), ct);
+        var listing = await _listingService.UpdateAsync(id, userId.Value, request, ct);
         if (listing == null)
             return NotFound(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ListingNotFound, Message = "Listing not found or not owner" } });
         return Ok(new ApiResponse { Success = true, Data = listing });
@@ -114,9 +130,12 @@ public class ListingsController : ControllerBase
 
     [HttpDelete("{id}")]
     [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var ok = await _listingService.DeleteAsync(id, userId.Value, ct);
@@ -127,9 +146,12 @@ public class ListingsController : ControllerBase
 
     [HttpPut("{id}/status")]
     [Authorize]
-    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStatusRequest body, CancellationToken ct)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> UpdateStatus(Guid id, [FromBody] UpdateStatusRequest? body, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         if (string.IsNullOrWhiteSpace(body?.Status))
@@ -142,9 +164,12 @@ public class ListingsController : ControllerBase
 
     [HttpGet("{id}/stats")]
     [Authorize]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetStats(Guid id, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
         var stats = await _listingService.GetStatsAsync(id, userId.Value, ct);
@@ -156,5 +181,5 @@ public class ListingsController : ControllerBase
 
 public class UpdateStatusRequest
 {
-    public string Status { get; set; } = "";
+    public required string Status { get; init; }
 }

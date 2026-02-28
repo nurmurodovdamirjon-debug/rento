@@ -1,17 +1,18 @@
 package uz.rento.data.repository
 
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import io.socket.client.IO
-import io.socket.client.Socket
+import com.google.gson.Gson
+import com.google.gson.JsonObject
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
-import org.json.JSONObject
+import kotlinx.coroutines.runBlocking
 import uz.rento.BuildConfig
 import uz.rento.data.local.dao.ChatDao
 import uz.rento.data.local.db.RentoDatabase
@@ -45,14 +46,16 @@ import javax.inject.Singleton
 class ChatRepositoryImpl @Inject constructor(
     private val chatApi: ChatApi,
     private val userPreferences: UserPreferences,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val gson: Gson
 ) : ChatRepository {
 
     companion object {
         private const val TAG = "ChatRepo"
     }
 
-    private var socket: Socket? = null
+    private var hubConnection: com.microsoft.signalr.HubConnection? = null
+    private var userRequestedDisconnect = false
 
     // ===== Flows =====
     private val _incomingMessages = MutableSharedFlow<Message>(extraBufferCapacity = 64)
@@ -93,7 +96,6 @@ class ChatRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 val data = response.data
                 val domainItems = data.items.map { it.toDomain() }
-                // Cache chat rooms
                 cacheChatRooms(domainItems)
                 Result.success(
                     ChatsPage(
@@ -119,7 +121,6 @@ class ChatRepositoryImpl @Inject constructor(
             if (response.success && response.data != null) {
                 val data = response.data
                 val domainItems = data.items.map { it.toDomain() }
-                // Cache messages
                 cacheMessages(domainItems)
                 Result.success(
                     MessagesPage(
@@ -179,137 +180,123 @@ class ChatRepositoryImpl @Inject constructor(
         }
     }
 
-    // ===== WebSocket =====
+    // ===== WebSocket (SignalR) =====
 
     override fun connectWebSocket() {
-        if (socket?.connected() == true) return
+        userRequestedDisconnect = false
+        if (hubConnection?.connectionState == com.microsoft.signalr.HubConnectionState.CONNECTED) return
 
+        val token = runBlocking { userPreferences.accessToken.first() }
+        if (token.isNullOrBlank()) {
+            Log.w(TAG, "Token yo'q — SignalR ulanmaydi")
+            return
+        }
+
+        val url = "${BuildConfig.CHAT_WS_URL}/hubs/chat?access_token=$token"
         try {
-            val token = kotlinx.coroutines.runBlocking {
-                userPreferences.accessToken.first()
+            hubConnection = com.microsoft.signalr.HubConnectionBuilder.create(url)
+                .shouldSkipNegotiate(false)
+                .build()
+
+            hubConnection!!.on("NewMessage", { message: Any? ->
+                parseNewMessage(message)?.let { msg ->
+                    _incomingMessages.tryEmit(msg)
+                    runBlocking { try { cacheMessages(listOf(msg)) } catch (_: Exception) {} }
+                }
+            }, Any::class.java)
+
+            hubConnection!!.on("UserTyping", { payload: Any? ->
+                parseJsonPayload(payload)?.let { json ->
+                    _typingEvents.tryEmit(
+                        TypingEvent(
+                            roomId = json.get("room_id")?.asString ?: "",
+                            userId = json.get("user_id")?.asString ?: "",
+                            isTyping = true
+                        )
+                    )
+                }
+            }, Any::class.java)
+
+            hubConnection!!.on("UserStopTyping", { payload: Any? ->
+                parseJsonPayload(payload)?.let { json ->
+                    _typingEvents.tryEmit(
+                        TypingEvent(
+                            roomId = json.get("room_id")?.asString ?: "",
+                            userId = json.get("user_id")?.asString ?: "",
+                            isTyping = false
+                        )
+                    )
+                }
+            }, Any::class.java)
+
+            hubConnection!!.on("MessageRead", { payload: Any? ->
+                parseJsonPayload(payload)?.let { json ->
+                    _readEvents.tryEmit(
+                        ReadEvent(
+                            roomId = json.get("room_id")?.asString ?: "",
+                            readerId = json.get("reader_id")?.asString ?: "",
+                            lastReadId = json.get("last_read_id")?.asString ?: ""
+                        )
+                    )
+                }
+            }, Any::class.java)
+
+            hubConnection!!.on("UserOnline", { payload: Any? ->
+                parseJsonPayload(payload)?.let { json ->
+                    _onlineEvents.tryEmit(
+                        OnlineEvent(userId = json.get("user_id")?.asString ?: "", isOnline = true)
+                    )
+                }
+            }, Any::class.java)
+
+            hubConnection!!.on("UserOffline", { payload: Any? ->
+                parseJsonPayload(payload)?.let { json ->
+                    _onlineEvents.tryEmit(
+                        OnlineEvent(userId = json.get("user_id")?.asString ?: "", isOnline = false)
+                    )
+                }
+            }, Any::class.java)
+
+            hubConnection!!.onClosed { error ->
+                Log.i(TAG, "SignalR uzildi: $error")
+                _connectionState.tryEmit(false)
+                if (!userRequestedDisconnect) {
+                    Handler(Looper.getMainLooper()).postDelayed({ connectWebSocket() }, 2000)
+                }
             }
-            if (token.isNullOrBlank()) {
-                Log.w(TAG, "Token yo'q — WebSocket ulanmaydi")
-                return
-            }
 
-            val options = IO.Options().apply {
-                path = "/ws/chat"
-                query = "token=$token"
-                forceNew = true
-                reconnection = true
-                reconnectionAttempts = 10
-                reconnectionDelay = 2000
-                timeout = 10000
-            }
-
-            socket = IO.socket(BuildConfig.CHAT_WS_URL, options).apply {
-                on(Socket.EVENT_CONNECT) {
-                    Log.i(TAG, "WebSocket ulandi")
-                    _connectionState.tryEmit(true)
-                }
-
-                on(Socket.EVENT_DISCONNECT) { args ->
-                    val reason = args.firstOrNull()?.toString() ?: "unknown"
-                    Log.i(TAG, "WebSocket uzildi: $reason")
-                    _connectionState.tryEmit(false)
-                }
-
-                on(Socket.EVENT_CONNECT_ERROR) { args ->
-                    val error = args.firstOrNull()?.toString() ?: "unknown"
-                    Log.e(TAG, "WebSocket ulanish xatosi: $error")
-                    _connectionState.tryEmit(false)
-                }
-
-                // ——— Server → Client eventlar ———
-
-                on("new_message") { args ->
-                    parseMessage(args)?.let { msg ->
-                        _incomingMessages.tryEmit(msg)
-                        // Cache incoming message
-                        kotlinx.coroutines.runBlocking {
-                            try { cacheMessages(listOf(msg)) } catch (_: Exception) {}
-                        }
-                    }
-                }
-
-                on("user_typing") { args ->
-                    parseJson(args)?.let { json ->
-                        _typingEvents.tryEmit(
-                            TypingEvent(
-                                roomId = json.optString("room_id"),
-                                userId = json.optString("user_id"),
-                                isTyping = true
-                            )
-                        )
-                    }
-                }
-
-                on("user_stop_typing") { args ->
-                    parseJson(args)?.let { json ->
-                        _typingEvents.tryEmit(
-                            TypingEvent(
-                                roomId = json.optString("room_id"),
-                                userId = json.optString("user_id"),
-                                isTyping = false
-                            )
-                        )
-                    }
-                }
-
-                on("message_read") { args ->
-                    parseJson(args)?.let { json ->
-                        _readEvents.tryEmit(
-                            ReadEvent(
-                                roomId = json.optString("room_id"),
-                                readerId = json.optString("reader_id"),
-                                lastReadId = json.optString("last_read_id")
-                            )
-                        )
-                    }
-                }
-
-                on("user_online") { args ->
-                    parseJson(args)?.let { json ->
-                        _onlineEvents.tryEmit(
-                            OnlineEvent(userId = json.optString("user_id"), isOnline = true)
-                        )
-                    }
-                }
-
-                on("user_offline") { args ->
-                    parseJson(args)?.let { json ->
-                        _onlineEvents.tryEmit(
-                            OnlineEvent(userId = json.optString("user_id"), isOnline = false)
-                        )
-                    }
-                }
-
-                on("error") { args ->
-                    val error = args.firstOrNull()?.toString() ?: "unknown"
-                    Log.e(TAG, "WebSocket server xatosi: $error")
-                }
-
-                connect()
-            }
+            hubConnection!!.start().blockingAwait()
+            Log.i(TAG, "SignalR ulandi")
+            _connectionState.tryEmit(true)
         } catch (e: Exception) {
-            Log.e(TAG, "WebSocket ulanishda xato", e)
+            Log.e(TAG, "SignalR ulanishda xato", e)
+            _connectionState.tryEmit(false)
         }
     }
 
     override fun disconnectWebSocket() {
-        socket?.disconnect()
-        socket?.off()
-        socket = null
+        userRequestedDisconnect = true
+        try {
+            hubConnection?.stop()
+        } catch (_: Exception) {}
+        hubConnection = null
         _connectionState.tryEmit(false)
     }
 
     override fun joinRoom(roomId: String) {
-        socket?.emit("join_room", JSONObject().put("room_id", roomId))
+        try {
+            hubConnection?.send("JoinRoom", roomId)
+        } catch (e: Exception) {
+            Log.e(TAG, "JoinRoom xato", e)
+        }
     }
 
     override fun leaveRoom(roomId: String) {
-        socket?.emit("leave_room", JSONObject().put("room_id", roomId))
+        try {
+            hubConnection?.send("LeaveRoom", roomId)
+        } catch (e: Exception) {
+            Log.e(TAG, "LeaveRoom xato", e)
+        }
     }
 
     override fun sendMessageViaWs(
@@ -319,32 +306,84 @@ class ChatRepositoryImpl @Inject constructor(
         mediaUrl: String?,
         metadata: Map<String, Any>?
     ) {
-        val data = JSONObject().apply {
-            put("room_id", roomId)
-            content?.let { put("content", it) }
-            put("type", type)
-            mediaUrl?.let { put("media_url", it) }
-            metadata?.let { put("metadata", JSONObject(it)) }
+        try {
+            hubConnection?.send(
+                "SendMessage",
+                roomId,
+                content,
+                type,
+                mediaUrl,
+                if (metadata != null) com.google.gson.JsonObject().apply {
+                    metadata.forEach { (k, v) -> add(k, gson.toJsonTree(v)) }
+                } else null
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "SendMessage via WS xato", e)
         }
-        socket?.emit("send_message", data)
     }
 
     override fun sendTypingStart(roomId: String) {
-        socket?.emit("typing_start", JSONObject().put("room_id", roomId))
+        try {
+            hubConnection?.send("TypingStart", roomId)
+        } catch (e: Exception) {
+            Log.e(TAG, "TypingStart xato", e)
+        }
     }
 
     override fun sendTypingStop(roomId: String) {
-        socket?.emit("typing_stop", JSONObject().put("room_id", roomId))
+        try {
+            hubConnection?.send("TypingStop", roomId)
+        } catch (e: Exception) {
+            Log.e(TAG, "TypingStop xato", e)
+        }
     }
 
     override fun sendMarkRead(roomId: String, messageId: String) {
-        socket?.emit("mark_read", JSONObject().apply {
-            put("room_id", roomId)
-            put("message_id", messageId)
-        })
+        try {
+            hubConnection?.send("MarkRead", roomId, messageId)
+        } catch (e: Exception) {
+            Log.e(TAG, "MarkRead xato", e)
+        }
     }
 
-    // ===== Offline Cache Helpers =====
+    // ===== Helpers =====
+
+    private fun parseJsonPayload(payload: Any?): JsonObject? {
+        if (payload == null) return null
+        return try {
+            when (payload) {
+                is JsonObject -> payload
+                is String -> gson.fromJson(payload, JsonObject::class.java)
+                else -> gson.toJsonTree(payload).asJsonObject
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "JSON parse xatosi", e)
+            null
+        }
+    }
+
+    private fun parseNewMessage(payload: Any?): Message? {
+        val json = parseJsonPayload(payload) ?: return null
+        return try {
+            Message(
+                id = json.get("id")?.asString ?: "",
+                roomId = json.get("room_id")?.asString ?: "",
+                senderId = json.get("sender_id")?.asString ?: "",
+                content = json.get("content")?.takeIf { !it.isJsonNull }?.asString,
+                messageType = MessageType.fromValue(json.get("type")?.asString ?: "text"),
+                mediaUrl = json.get("media_url")?.takeIf { !it.isJsonNull }?.asString,
+                metadata = null,
+                isRead = false,
+                readAt = null,
+                createdAt = json.get("created_at")?.asString ?: ""
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Message parse xatosi", e)
+            null
+        }
+    }
+
+    // ===== Offline Cache =====
 
     private suspend fun cacheChatRooms(rooms: List<ChatRoom>) {
         try {
@@ -404,42 +443,6 @@ class ChatRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Keshdan xabarlarni o'qishda xato", e)
             Result.failure(Exception("Offline xabarlarni olishda xatolik"))
-        }
-    }
-
-    // ===== Helpers =====
-
-    private fun parseJson(args: Array<Any>): JSONObject? {
-        return try {
-            when (val arg = args.firstOrNull()) {
-                is JSONObject -> arg
-                is String -> JSONObject(arg)
-                else -> null
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "JSON parse xatosi", e)
-            null
-        }
-    }
-
-    private fun parseMessage(args: Array<Any>): Message? {
-        return try {
-            val json = parseJson(args) ?: return null
-            Message(
-                id = json.optString("id"),
-                roomId = json.optString("room_id"),
-                senderId = json.optString("sender_id"),
-                content = json.optString("content", null),
-                messageType = MessageType.fromValue(json.optString("type", "text")),
-                mediaUrl = json.optString("media_url", null),
-                metadata = null,
-                isRead = false,
-                readAt = null,
-                createdAt = json.optString("created_at")
-            )
-        } catch (e: Exception) {
-            Log.e(TAG, "Message parse xatosi", e)
-            null
         }
     }
 }

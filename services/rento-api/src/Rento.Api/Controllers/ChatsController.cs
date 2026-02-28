@@ -1,7 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rento.Application.Services;
 using Rento.Core.Common;
+using Rento.Api.Extensions;
 
 namespace Rento.Api.Controllers;
 
@@ -10,54 +11,98 @@ namespace Rento.Api.Controllers;
 [Authorize]
 public class ChatsController : ControllerBase
 {
-    [HttpPost]
-    public IActionResult CreateOrGet([FromBody] CreateChatRequest? body, CancellationToken ct)
+    private readonly IChatService _chatService;
+
+    public ChatsController(IChatService chatService)
     {
-        if (body == null)
-            return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "listing_id and initial_message required" } });
-        return StatusCode(201, new ApiResponse { Success = true, Data = new { room_id = Guid.NewGuid(), listing = new { id = body.ListingId, title = "", image_url = (string?)null }, other_user = (object?)null, created_at = DateTime.UtcNow } });
+        _chatService = chatService;
+    }
+
+    [HttpPost]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CreateOrGet([FromBody] CreateChatRequest? body, CancellationToken ct)
+    {
+        if (body?.ListingId == null)
+            return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "listing_id required" } });
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+        var result = await _chatService.CreateOrGetRoomAsync(body.ListingId.Value, userId.Value, body.InitialMessage, ct);
+        if (result == null)
+            return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "Listing not found or cannot chat with self" } });
+        return StatusCode(201, new ApiResponse { Success = true, Data = new { room_id = result.RoomId, listing = result.Listing, other_user = result.OtherUser, created_at = result.CreatedAt } });
     }
 
     [HttpGet]
-    public IActionResult GetList([FromQuery] int page = 1, [FromQuery(Name = "per_page")] int perPage = 20)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> GetList([FromQuery] int page = 1, [FromQuery(Name = "per_page")] int perPage = 20, CancellationToken ct = default)
     {
-        return Ok(new ApiResponse { Success = true, Data = new { items = Array.Empty<object>(), meta = new { page, per_page = perPage, total = 0, total_pages = 0 } } });
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+        var result = await _chatService.GetRoomsAsync(userId.Value, page, perPage, ct);
+        return Ok(new ApiResponse { Success = true, Data = new { items = result.Items, meta = new { result.Page, per_page = result.PerPage, total = result.Total, total_pages = result.TotalPages } } });
     }
 
     [HttpGet("{roomId}/messages")]
-    public IActionResult GetMessages(Guid roomId, [FromQuery] int page = 1, [FromQuery(Name = "per_page")] int perPage = 20)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMessages(Guid roomId, [FromQuery] int page = 1, [FromQuery(Name = "per_page")] int perPage = 20, CancellationToken ct = default)
     {
-        return Ok(new ApiResponse { Success = true, Data = new { items = Array.Empty<object>(), meta = new { page, per_page = perPage, total = 0, total_pages = 0 } } });
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+        var result = await _chatService.GetMessagesAsync(roomId, userId.Value, page, perPage, ct);
+        if (result == null)
+            return NotFound(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.NotFound, Message = "Room not found or access denied" } });
+        return Ok(new ApiResponse { Success = true, Data = new { items = result.Items, meta = new { result.Page, per_page = result.PerPage, total = result.Total, total_pages = result.TotalPages } } });
     }
 
     [HttpPost("{roomId}/messages")]
-    public IActionResult SendMessage(Guid roomId, [FromBody] SendMessageRequest? body, CancellationToken ct)
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SendMessage(Guid roomId, [FromBody] SendMessageRequest? body, CancellationToken ct)
     {
         if (body == null)
             return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.ValidationError, Message = "content required for text" } });
-        return StatusCode(201, new ApiResponse { Success = true, Data = new { id = Guid.NewGuid(), room_id = roomId, sender_id = GetUserId(), content = body.Content, type = body.MessageType ?? "text", created_at = DateTime.UtcNow } });
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+        var msg = await _chatService.SendMessageAsync(roomId, userId.Value, body.Content, body.MessageType, body.MediaUrl, body.Metadata != null ? System.Text.Json.JsonSerializer.Serialize(body.Metadata) : null, ct);
+        if (msg == null)
+            return NotFound(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.NotFound, Message = "Room not found or access denied" } });
+        return StatusCode(201, new ApiResponse { Success = true, Data = new { msg.Id, room_id = msg.RoomId, sender_id = msg.SenderId, content = msg.Content, type = msg.MessageType, media_url = msg.MediaUrl, metadata = msg.Metadata, created_at = msg.CreatedAt } });
     }
 
     [HttpPut("{roomId}/read")]
-    public IActionResult MarkRead(Guid roomId) => NoContent();
-
-    private Guid? GetUserId()
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> MarkRead(Guid roomId, [FromQuery] Guid? message_id, CancellationToken ct)
     {
-        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var id) ? id : null;
+        var userId = User.GetUserId();
+        if (userId == null)
+            return Unauthorized();
+        await _chatService.MarkReadAsync(roomId, userId.Value, message_id, ct);
+        return NoContent();
     }
 }
 
 public class CreateChatRequest
 {
-    public Guid? ListingId { get; set; }
-    public string? InitialMessage { get; set; }
+    public Guid? ListingId { get; init; }
+    public string? InitialMessage { get; init; }
 }
 
 public class SendMessageRequest
 {
-    public string? Content { get; set; }
-    public string? MessageType { get; set; }
-    public string? MediaUrl { get; set; }
-    public object? Metadata { get; set; }
+    public string? Content { get; init; }
+    public string? MessageType { get; init; }
+    public string? MediaUrl { get; init; }
+    public object? Metadata { get; init; }
 }

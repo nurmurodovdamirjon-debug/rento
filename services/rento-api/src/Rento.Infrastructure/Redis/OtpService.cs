@@ -9,6 +9,13 @@ public class OtpService : IOtpService
     private const string KeyPrefix = "auth:otp:";
     private const string AttemptsPrefix = "auth:otp_attempts:";
     private const string RedisUnavailableMessage = "Redis unavailable. Auth temporarily disabled.";
+
+    // Atomically increments counter and sets expiry only on first increment (no race condition)
+    private const string IncrementScript =
+        "local v = redis.call('INCR', KEYS[1]) " +
+        "if v == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end " +
+        "return v";
+
     private readonly IConnectionMultiplexer _redis;
 
     public OtpService(IConnectionMultiplexer redis)
@@ -51,9 +58,11 @@ public class OtpService : IOtpService
         if (!_redis.IsConnected)
             throw new ServiceUnavailableException(RedisUnavailableMessage);
         var key = AttemptsPrefix + phone;
-        var count = await Db.StringIncrementAsync(key);
-        if (count == 1)
-            await Db.KeyExpireAsync(key, window);
+        // Lua script ensures atomicity: increment + set TTL only on first increment
+        await Db.ScriptEvaluateAsync(
+            IncrementScript,
+            keys: [(RedisKey)key],
+            values: [(RedisValue)(long)window.TotalSeconds]);
     }
 
     public async Task<int> GetAttemptsRemainingAsync(string phone, int maxAttempts, CancellationToken ct = default)

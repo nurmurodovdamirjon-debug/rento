@@ -2,28 +2,23 @@ using Microsoft.EntityFrameworkCore;
 using Rento.Application.Common;
 using Rento.Application.DTOs.Listings;
 using Rento.Application.Repositories;
+using Rento.Core.Common;
 using Rento.Core.Entities;
 using Rento.Infrastructure.Data;
 
 namespace Rento.Infrastructure.Repositories;
 
-public class ListingRepository : IListingRepository
+public class ListingRepository(RentoDbContext db) : IListingRepository
 {
-    private readonly RentoDbContext _db;
-
-    public ListingRepository(RentoDbContext db)
-    {
-        _db = db;
-    }
 
     public async Task<Listing?> GetByIdAsync(Guid id, CancellationToken ct = default)
     {
-        return await _db.Listings.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct);
+        return await db.Listings.AsNoTracking().FirstOrDefaultAsync(l => l.Id == id, ct);
     }
 
     public async Task<Listing?> GetByIdWithImagesAsync(Guid id, CancellationToken ct = default)
     {
-        return await _db.Listings
+        return await db.Listings
             .AsNoTracking()
             .Include(l => l.ListingImages.OrderBy(i => i.SortOrder))
             .Include(l => l.User)
@@ -32,7 +27,7 @@ public class ListingRepository : IListingRepository
 
     public async Task<PaginatedResult<Listing>> GetListingsAsync(ListingFilter filter, CancellationToken ct = default)
     {
-        var q = _db.Listings.AsNoTracking().Where(l => l.Status == "active");
+        var q = db.Listings.AsNoTracking().Where(l => l.Status == ListingStatus.Active);
         if (!string.IsNullOrWhiteSpace(filter.City)) q = q.Where(l => l.City == filter.City);
         if (!string.IsNullOrWhiteSpace(filter.District)) q = q.Where(l => l.District == filter.District);
         if (!string.IsNullOrWhiteSpace(filter.Type)) q = q.Where(l => l.Type == filter.Type);
@@ -58,39 +53,32 @@ public class ListingRepository : IListingRepository
 
         var page = Math.Max(1, filter.Page);
         var perPage = Math.Clamp(filter.PerPage, 1, 100);
-        var items = await q.Skip((page - 1) * perPage).Take(perPage)
+
+        // Include before Skip/Take to avoid loading all rows into memory
+        var items = await q
             .Include(l => l.ListingImages.Where(i => i.IsMain))
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
             .ToListAsync(ct);
 
-        var totalPages = (int)Math.Ceiling(total / (double)perPage);
-        return new PaginatedResult<Listing>
-        {
-            Items = items,
-            Page = page,
-            PerPage = perPage,
-            Total = total,
-            TotalPages = totalPages
-        };
+        return PaginatedResult<Listing>.Create(items, page, perPage, total);
     }
 
     public async Task<PaginatedResult<Listing>> GetMyListingsAsync(Guid userId, string? status, int page, int perPage, CancellationToken ct = default)
     {
-        var q = _db.Listings.AsNoTracking().Where(l => l.UserId == userId);
+        var q = db.Listings.AsNoTracking().Where(l => l.UserId == userId);
         if (!string.IsNullOrWhiteSpace(status)) q = q.Where(l => l.Status == status);
         var total = await q.CountAsync(ct);
-        var items = await q.OrderByDescending(l => l.CreatedAt)
-            .Skip((page - 1) * perPage).Take(perPage)
+
+        // Include before Skip/Take
+        var items = await q
+            .OrderByDescending(l => l.CreatedAt)
             .Include(l => l.ListingImages.Where(i => i.IsMain))
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
             .ToListAsync(ct);
-        var totalPages = (int)Math.Ceiling(total / (double)perPage);
-        return new PaginatedResult<Listing>
-        {
-            Items = items,
-            Page = page,
-            PerPage = perPage,
-            Total = total,
-            TotalPages = totalPages
-        };
+
+        return PaginatedResult<Listing>.Create(items, page, perPage, total);
     }
 
     public async Task<Listing> CreateAsync(Listing listing, CancellationToken ct = default)
@@ -98,67 +86,133 @@ public class ListingRepository : IListingRepository
         listing.Id = Guid.NewGuid();
         listing.CreatedAt = DateTime.UtcNow;
         listing.UpdatedAt = DateTime.UtcNow;
-        listing.Status = "pending";
-        _db.Listings.Add(listing);
-        await _db.SaveChangesAsync(ct);
+        listing.Status = ListingStatus.Pending;
+        db.Listings.Add(listing);
+        await db.SaveChangesAsync(ct);
         return listing;
     }
 
     public async Task<bool> UpdateAsync(Listing listing, CancellationToken ct = default)
     {
-        var existing = await _db.Listings.FirstOrDefaultAsync(l => l.Id == listing.Id, ct);
-        if (existing == null) return false;
-        existing.Type = listing.Type;
-        existing.DealType = listing.DealType;
-        existing.City = listing.City;
-        existing.District = listing.District;
-        existing.Address = listing.Address;
-        existing.Landmark = listing.Landmark;
-        existing.Latitude = listing.Latitude;
-        existing.Longitude = listing.Longitude;
-        existing.Rooms = listing.Rooms;
-        existing.Floor = listing.Floor;
-        existing.TotalFloors = listing.TotalFloors;
-        existing.AreaSqm = listing.AreaSqm;
-        existing.Price = listing.Price;
-        existing.Currency = listing.Currency;
-        existing.PriceNegotiable = listing.PriceNegotiable;
-        existing.HasFurniture = listing.HasFurniture;
-        existing.HasAppliances = listing.HasAppliances;
-        existing.HasInternet = listing.HasInternet;
-        existing.HasParking = listing.HasParking;
-        existing.HasConditioner = listing.HasConditioner;
-        existing.AllowsPets = listing.AllowsPets;
-        existing.AllowsChildren = listing.AllowsChildren;
-        existing.UtilitiesIncluded = listing.UtilitiesIncluded;
-        existing.DepositAmount = listing.DepositAmount;
-        existing.Title = listing.Title;
-        existing.Description = listing.Description;
-        existing.UpdatedAt = DateTime.UtcNow;
-        await _db.SaveChangesAsync(ct);
-        return true;
+        var updated = await db.Listings
+            .Where(l => l.Id == listing.Id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(l => l.Type, listing.Type)
+                .SetProperty(l => l.DealType, listing.DealType)
+                .SetProperty(l => l.City, listing.City)
+                .SetProperty(l => l.District, listing.District)
+                .SetProperty(l => l.Address, listing.Address)
+                .SetProperty(l => l.Landmark, listing.Landmark)
+                .SetProperty(l => l.Latitude, listing.Latitude)
+                .SetProperty(l => l.Longitude, listing.Longitude)
+                .SetProperty(l => l.Rooms, listing.Rooms)
+                .SetProperty(l => l.Floor, listing.Floor)
+                .SetProperty(l => l.TotalFloors, listing.TotalFloors)
+                .SetProperty(l => l.AreaSqm, listing.AreaSqm)
+                .SetProperty(l => l.Price, listing.Price)
+                .SetProperty(l => l.Currency, listing.Currency)
+                .SetProperty(l => l.PriceNegotiable, listing.PriceNegotiable)
+                .SetProperty(l => l.HasFurniture, listing.HasFurniture)
+                .SetProperty(l => l.HasAppliances, listing.HasAppliances)
+                .SetProperty(l => l.HasInternet, listing.HasInternet)
+                .SetProperty(l => l.HasParking, listing.HasParking)
+                .SetProperty(l => l.HasConditioner, listing.HasConditioner)
+                .SetProperty(l => l.AllowsPets, listing.AllowsPets)
+                .SetProperty(l => l.AllowsChildren, listing.AllowsChildren)
+                .SetProperty(l => l.UtilitiesIncluded, listing.UtilitiesIncluded)
+                .SetProperty(l => l.DepositAmount, listing.DepositAmount)
+                .SetProperty(l => l.Title, listing.Title)
+                .SetProperty(l => l.Description, listing.Description)
+                .SetProperty(l => l.UpdatedAt, DateTime.UtcNow), ct);
+        return updated > 0;
     }
 
     public async Task<bool> DeleteAsync(Guid id, Guid userId, CancellationToken ct = default)
     {
-        var listing = await _db.Listings.FirstOrDefaultAsync(l => l.Id == id && l.UserId == userId, ct);
-        if (listing == null) return false;
-        _db.Listings.Remove(listing);
-        await _db.SaveChangesAsync(ct);
-        return true;
+        var deleted = await db.Listings
+            .Where(l => l.Id == id && l.UserId == userId)
+            .ExecuteDeleteAsync(ct);
+        return deleted > 0;
     }
 
     public async Task<int> CountCreatedTodayAsync(Guid userId, CancellationToken ct = default)
     {
         var today = DateTime.UtcNow.Date;
-        return await _db.Listings.CountAsync(l => l.UserId == userId && l.CreatedAt >= today, ct);
+        return await db.Listings.CountAsync(l => l.UserId == userId && l.CreatedAt >= today, ct);
     }
 
     public async Task<bool> UpdateStatusAsync(Guid listingId, Guid userId, string status, CancellationToken ct = default)
     {
-        var updated = await _db.Listings
+        var updated = await db.Listings
             .Where(l => l.Id == listingId && l.UserId == userId)
-            .ExecuteUpdateAsync(s => s.SetProperty(l => l.Status, status).SetProperty(l => l.UpdatedAt, DateTime.UtcNow), ct);
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(l => l.Status, status)
+                .SetProperty(l => l.UpdatedAt, DateTime.UtcNow), ct);
+        return updated > 0;
+    }
+
+    public async Task<PaginatedResult<Listing>> SearchListingsAsync(SearchFilter filter, CancellationToken ct = default)
+    {
+        var q = db.Listings.AsNoTracking().Where(l => l.Status == ListingStatus.Active);
+        if (!string.IsNullOrWhiteSpace(filter.Q))
+        {
+            var term = $"%{filter.Q.Trim()}%";
+            // ILike uses PostgreSQL case-insensitive index scan (much faster than ToLower().Contains())
+            q = q.Where(l => EF.Functions.ILike(l.Title ?? "", term)
+                || EF.Functions.ILike(l.City ?? "", term)
+                || EF.Functions.ILike(l.District ?? "", term));
+        }
+        if (!string.IsNullOrWhiteSpace(filter.City)) q = q.Where(l => l.City == filter.City);
+        if (!string.IsNullOrWhiteSpace(filter.Type)) q = q.Where(l => l.Type == filter.Type);
+        if (!string.IsNullOrWhiteSpace(filter.DealType)) q = q.Where(l => l.DealType == filter.DealType);
+
+        var total = await q.CountAsync(ct);
+        var sort = (filter.Sort ?? "newest").ToLowerInvariant();
+        q = sort switch
+        {
+            "price_asc" => q.OrderBy(l => l.Price),
+            "price_desc" => q.OrderByDescending(l => l.Price),
+            "oldest" => q.OrderBy(l => l.CreatedAt),
+            _ => q.OrderByDescending(l => l.CreatedAt)
+        };
+
+        var page = Math.Max(1, filter.Page);
+        var perPage = Math.Clamp(filter.PerPage, 1, 100);
+
+        // Include before Skip/Take
+        var items = await q
+            .Include(l => l.ListingImages.Where(i => i.IsMain))
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .ToListAsync(ct);
+
+        return PaginatedResult<Listing>.Create(items, page, perPage, total);
+    }
+
+    public async Task<PaginatedResult<Listing>> GetPendingListingsAsync(int page, int perPage, CancellationToken ct = default)
+    {
+        var q = db.Listings.AsNoTracking().Where(l => l.Status == ListingStatus.Pending).OrderBy(l => l.CreatedAt);
+        var total = await q.CountAsync(ct);
+
+        // Include before Skip/Take
+        var items = await q
+            .Include(l => l.ListingImages.Where(i => i.IsMain))
+            .Include(l => l.User)
+            .Skip((page - 1) * perPage)
+            .Take(perPage)
+            .ToListAsync(ct);
+
+        return PaginatedResult<Listing>.Create(items, page, perPage, total);
+    }
+
+    public async Task<bool> UpdateStatusByAdminAsync(Guid listingId, string status, string? rejectionReason, CancellationToken ct = default)
+    {
+        var updated = await db.Listings
+            .Where(l => l.Id == listingId)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(l => l.Status, status)
+                .SetProperty(l => l.UpdatedAt, DateTime.UtcNow)
+                .SetProperty(l => l.RejectionReason, rejectionReason), ct);
         return updated > 0;
     }
 }

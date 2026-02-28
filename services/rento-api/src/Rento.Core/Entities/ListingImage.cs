@@ -7,7 +7,7 @@ public class ListingImage
 {
     public Guid Id { get; set; }
     public Guid ListingId { get; set; }
-    public string Url { get; set; } = "";
+    public required string Url { get; set; }
     public string? ThumbnailUrl { get; set; }
     public short SortOrder { get; set; }
     public bool IsMain { get; set; }

@@ -11,6 +11,12 @@ public static class RateLimitMiddleware
     private const int DefaultMaxPerMinute = 60;
     private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
 
+    // Atomically increment and set TTL on first call (no TOCTOU race condition)
+    private const string IncrementScript =
+        "local v = redis.call('INCR', KEYS[1]) " +
+        "if v == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end " +
+        "return v";
+
     public static IApplicationBuilder UseRedisRateLimit(this IApplicationBuilder app)
     {
         app.Use(async (context, next) =>
@@ -28,9 +34,11 @@ public static class RateLimitMiddleware
             var key = KeyPrefix + clientId;
 
             var db = redis.GetDatabase();
-            var count = await db.StringIncrementAsync(key);
-            if (count == 1)
-                await db.KeyExpireAsync(key, Window);
+            var result = await db.ScriptEvaluateAsync(
+                IncrementScript,
+                keys: [(RedisKey)key],
+                values: [(RedisValue)(long)Window.TotalSeconds]);
+            var count = (long)result;
 
             if (count > max)
             {

@@ -32,11 +32,11 @@ android {
             useSupportLibrary = true
         }
 
-        // API URL — BuildConfig orqali
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:3002/api/v1/\"")
-        buildConfigField("String", "AUTH_BASE_URL", "\"http://10.0.2.2:3001/api/v1/\"")
-        buildConfigField("String", "CHAT_BASE_URL", "\"http://10.0.2.2:3003/api/v1/\"")
-        buildConfigField("String", "CHAT_WS_URL", "\"http://10.0.2.2:3003\"")
+        // API URL — bitta backend (C# rento-api)
+        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:5000/api/v1/\"")
+        buildConfigField("String", "AUTH_BASE_URL", "\"http://10.0.2.2:5000/api/v1/\"")
+        buildConfigField("String", "CHAT_BASE_URL", "\"http://10.0.2.2:5000/api/v1/\"")
+        buildConfigField("String", "CHAT_WS_URL", "\"http://10.0.2.2:5000\"")
     }
 
     buildTypes {
@@ -48,7 +48,7 @@ android {
                 "proguard-rules.pro"
             )
             buildConfigField("String", "API_BASE_URL", "\"https://api.rento.uz/api/v1/\"")
-            buildConfigField("String", "AUTH_BASE_URL", "\"https://api.rento.uz/api/v1/auth/\"")
+            buildConfigField("String", "AUTH_BASE_URL", "\"https://api.rento.uz/api/v1/\"")
             buildConfigField("String", "CHAT_BASE_URL", "\"https://api.rento.uz/api/v1/\"")
             buildConfigField("String", "CHAT_WS_URL", "\"https://api.rento.uz\"")
         }
@@ -122,8 +122,8 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.9.0"))
     implementation("com.google.firebase:firebase-messaging")
 
-    // Socket.IO — chat WebSocket
-    implementation("io.socket:socket.io-client:2.1.2")
+    // SignalR — chat WebSocket (C# backend)
+    implementation("com.microsoft.signalr:signalr:7.0.0")
 
     // Image loading — Coil
     implementation("io.coil-kt:coil-compose:2.7.0")

@@ -51,6 +51,9 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IListingRepository, ListingRepository>();
         services.AddScoped<IFavoriteRepository, FavoriteRepository>();
+        services.AddScoped<IChatRepository, ChatRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IReportRepository, ReportRepository>();
 
         var minioEndpoint = configuration["MinIO:Endpoint"];
         var minioAccess = configuration["MinIO:AccessKey"];

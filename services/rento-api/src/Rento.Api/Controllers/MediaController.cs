@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Rento.Api.Extensions;
 using Rento.Application.Services;
 using Rento.Core.Common;
 
@@ -18,25 +18,22 @@ public class MediaController : ControllerBase
         _mediaService = mediaService;
     }
 
-    private Guid? GetUserId()
-    {
-        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
-        return Guid.TryParse(sub, out var id) ? id : null;
-    }
-
     [HttpPost("upload")]
     [RequestSizeLimit(5 * 1024 * 1024)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Upload(IFormFile? file, [FromForm] string? bucket, CancellationToken ct)
     {
-        var userId = GetUserId();
+        var userId = User.GetUserId();
         if (userId == null)
             return Unauthorized(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.AuthRequired, Message = "Unauthorized" } });
 
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.FileRequired, Message = "File is required" } });
 
-        var b = (bucket ?? "listings").ToLowerInvariant();
-        if (b != "listings" && b != "avatars")
+        var b = (bucket ?? MediaBucket.Listings).ToLowerInvariant();
+        if (b != MediaBucket.Listings && b != MediaBucket.Avatars)
             return BadRequest(new ApiResponse { Success = false, Error = new ApiError { Code = ErrorCodes.InvalidBucket, Message = "Bucket must be listings or avatars" } });
 
         if (file.Length > 5 * 1024 * 1024)

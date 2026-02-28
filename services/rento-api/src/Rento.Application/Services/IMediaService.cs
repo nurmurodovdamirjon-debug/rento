@@ -7,9 +7,9 @@ public interface IMediaService
 
 public class MediaUploadResult
 {
-    public Guid Id { get; set; }
-    public string Url { get; set; } = "";
-    public string? ThumbnailUrl { get; set; }
-    public short SortOrder { get; set; }
-    public bool IsMain { get; set; }
+    public Guid Id { get; init; }
+    public required string Url { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public short SortOrder { get; init; }
+    public bool IsMain { get; init; }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Prometheus;
 using Rento.Api.Middleware;
 using Rento.Application;
@@ -30,6 +31,15 @@ builder.Services.AddInfrastructure(config);
 // Application
 builder.Services.AddApplication();
 
+// Auth options (from existing config keys)
+builder.Services.Configure<Rento.Application.Options.AuthOptions>(opts =>
+{
+    opts.OtpExpirySeconds = int.TryParse(config["Otp:ExpirySeconds"], out var s) ? s : 300;
+    opts.SmsMaxPerHour = int.TryParse(config["RateLimit:SmsMaxPerHour"], out var h) ? h : 3;
+    opts.SmsWindowSeconds = int.TryParse(config["RateLimit:SmsWindowSeconds"], out var w) ? w : 3600;
+    opts.RefreshExpiryDays = int.TryParse(config["Jwt:RefreshExpiryDays"], out var d) ? d : 7;
+});
+
 // JWT Bearer
 var jwtSecret = config["Jwt:AccessSecret"];
 if (!string.IsNullOrEmpty(jwtSecret))
@@ -42,12 +52,13 @@ if (!string.IsNullOrEmpty(jwtSecret))
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
                 ValidIssuer = "rento.uz",
+                ValidAudience = "rento-api",
                 ValidateIssuer = true,
-                ValidateAudience = false,
+                ValidateAudience = true,
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
             };
-            options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+            options.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>
                 {
@@ -100,6 +111,29 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "Rento API", Version = "v1" });
+
+    var securityScheme = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter JWT Bearer token: Bearer {token}",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    };
+    c.AddSecurityDefinition("Bearer", securityScheme);
+
+    var securityRequirement = new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            []
+        }
+    };
+    c.AddSecurityRequirement(securityRequirement);
 });
 
 builder.Services.AddSignalR();

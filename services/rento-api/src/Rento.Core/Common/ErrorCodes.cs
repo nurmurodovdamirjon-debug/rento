@@ -3,6 +3,7 @@ namespace Rento.Core.Common;
 public static class ErrorCodes
 {
     public const string AuthRequired = "AUTH_REQUIRED";
+    public const string Unauthorized = "UNAUTHORIZED";
     public const string AuthTokenInvalid = "AUTH_TOKEN_INVALID";
     public const string AuthTokenExpired = "AUTH_TOKEN_EXPIRED";
     public const string UserNotFound = "USER_NOT_FOUND";

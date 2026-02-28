@@ -7,9 +7,9 @@ public class Notification
 {
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
-    public string Type { get; set; } = "";
-    public string Title { get; set; } = "";
-    public string Body { get; set; } = "";
+    public required string Type { get; set; }
+    public required string Title { get; set; }
+    public required string Body { get; set; }
     public string? RefType { get; set; }
     public Guid? RefId { get; set; }
     public bool IsRead { get; set; }

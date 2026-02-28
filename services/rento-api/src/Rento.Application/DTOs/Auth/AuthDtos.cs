@@ -2,50 +2,50 @@ namespace Rento.Application.DTOs.Auth;
 
 public class SendOtpRequest
 {
-    public string Phone { get; set; } = "";
+    public required string Phone { get; init; }
 }
 
 public class SendOtpResult
 {
-    public string Phone { get; set; } = "";
-    public int ExpiresIn { get; set; }
-    public int RetryAfter { get; set; }
-    public int AttemptsRemaining { get; set; }
+    public required string Phone { get; init; }
+    public int ExpiresIn { get; init; }
+    public int RetryAfter { get; init; }
+    public int AttemptsRemaining { get; init; }
 }
 
 public class VerifyOtpRequest
 {
-    public string Phone { get; set; } = "";
-    public string Otp { get; set; } = "";
+    public required string Phone { get; init; }
+    public required string Otp { get; init; }
 }
 
 public class VerifyOtpResult
 {
-    public string AccessToken { get; set; } = "";
-    public string RefreshToken { get; set; } = "";
-    public string TokenType { get; set; } = "Bearer";
-    public int ExpiresIn { get; set; }
-    public VerifyOtpUser User { get; set; } = new();
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public string TokenType { get; init; } = "Bearer";
+    public int ExpiresIn { get; init; }
+    public required VerifyOtpUser User { get; init; }
 }
 
 public class VerifyOtpUser
 {
-    public Guid Id { get; set; }
-    public string Phone { get; set; } = "";
-    public string? FullName { get; set; }
-    public string Role { get; set; } = "";
-    public bool IsNewUser { get; set; }
+    public Guid Id { get; init; }
+    public required string Phone { get; init; }
+    public string? FullName { get; init; }
+    public required string Role { get; init; }
+    public bool IsNewUser { get; init; }
 }
 
 public class RefreshTokenRequest
 {
-    public string RefreshToken { get; set; } = "";
+    public required string RefreshToken { get; init; }
 }
 
 public class TokenResult
 {
-    public string AccessToken { get; set; } = "";
-    public string RefreshToken { get; set; } = "";
-    public string TokenType { get; set; } = "Bearer";
-    public int ExpiresIn { get; set; }
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public string TokenType { get; init; } = "Bearer";
+    public int ExpiresIn { get; init; }
 }

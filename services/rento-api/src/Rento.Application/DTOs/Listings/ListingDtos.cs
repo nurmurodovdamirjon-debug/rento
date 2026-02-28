@@ -1,156 +1,158 @@
+using Rento.Core.Common;
+
 namespace Rento.Application.DTOs.Listings;
 
 public class ListingFilter
 {
-    public string? City { get; set; }
-    public string? District { get; set; }
-    public string? Type { get; set; }
-    public string? DealType { get; set; }
-    public int? RoomsMin { get; set; }
-    public int? RoomsMax { get; set; }
-    public decimal? PriceMin { get; set; }
-    public decimal? PriceMax { get; set; }
-    public string? Currency { get; set; }
-    public bool? HasFurniture { get; set; }
-    public bool? HasParking { get; set; }
-    public bool? AllowsPets { get; set; }
-    public string? Sort { get; set; }
-    public int Page { get; set; } = 1;
-    public int PerPage { get; set; } = 20;
+    public string? City { get; init; }
+    public string? District { get; init; }
+    public string? Type { get; init; }
+    public string? DealType { get; init; }
+    public int? RoomsMin { get; init; }
+    public int? RoomsMax { get; init; }
+    public decimal? PriceMin { get; init; }
+    public decimal? PriceMax { get; init; }
+    public string? Currency { get; init; }
+    public bool? HasFurniture { get; init; }
+    public bool? HasParking { get; init; }
+    public bool? AllowsPets { get; init; }
+    public string? Sort { get; init; }
+    public int Page { get; init; } = 1;
+    public int PerPage { get; init; } = 20;
 }
 
 public class SearchFilter
 {
-    public string? Q { get; set; }
-    public string? City { get; set; }
-    public string? Type { get; set; }
-    public string? DealType { get; set; }
-    public string? Sort { get; set; }
-    public int Page { get; set; } = 1;
-    public int PerPage { get; set; } = 20;
+    public string? Q { get; init; }
+    public string? City { get; init; }
+    public string? Type { get; init; }
+    public string? DealType { get; init; }
+    public string? Sort { get; init; }
+    public int Page { get; init; } = 1;
+    public int PerPage { get; init; } = 20;
 }
 
 public class NearbyFilter
 {
-    public double Lat { get; set; }
-    public double Lng { get; set; }
-    public double RadiusKm { get; set; }
-    public string? Type { get; set; }
-    public string? DealType { get; set; }
-    public int Page { get; set; } = 1;
-    public int PerPage { get; set; } = 20;
+    public double Lat { get; init; }
+    public double Lng { get; init; }
+    public double RadiusKm { get; init; }
+    public string? Type { get; init; }
+    public string? DealType { get; init; }
+    public int Page { get; init; } = 1;
+    public int PerPage { get; init; } = 20;
 }
 
 public class ListingSummaryDto
 {
-    public Guid Id { get; set; }
-    public string Title { get; set; } = "";
-    public string? ImageUrl { get; set; }
-    public decimal Price { get; set; }
-    public string Currency { get; set; } = "UZS";
-    public string City { get; set; } = "";
-    public string? District { get; set; }
-    public string Type { get; set; } = "";
-    public string DealType { get; set; } = "";
-    public short? Rooms { get; set; }
-    public string Status { get; set; } = "";
-    public DateTime CreatedAt { get; set; }
-    public double? DistanceMeters { get; set; }
+    public Guid Id { get; init; }
+    public required string Title { get; init; }
+    public string? ImageUrl { get; init; }
+    public decimal Price { get; init; }
+    public string Currency { get; init; } = Rento.Core.Common.Currency.Uzs;
+    public required string City { get; init; }
+    public string? District { get; init; }
+    public required string Type { get; init; }
+    public required string DealType { get; init; }
+    public short? Rooms { get; init; }
+    public required string Status { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public double? DistanceMeters { get; init; }
 }
 
 public class ListingDetailDto
 {
-    public Guid Id { get; set; }
-    public Guid UserId { get; set; }
-    public string Type { get; set; } = "";
-    public string DealType { get; set; } = "";
-    public string City { get; set; } = "";
-    public string? District { get; set; }
-    public string? Address { get; set; }
-    public string? Landmark { get; set; }
-    public decimal? Latitude { get; set; }
-    public decimal? Longitude { get; set; }
-    public short? Rooms { get; set; }
-    public short? Floor { get; set; }
-    public short? TotalFloors { get; set; }
-    public decimal? AreaSqm { get; set; }
-    public decimal Price { get; set; }
-    public string Currency { get; set; } = "UZS";
-    public bool PriceNegotiable { get; set; }
-    public bool HasFurniture { get; set; }
-    public bool HasAppliances { get; set; }
-    public bool HasInternet { get; set; }
-    public bool HasParking { get; set; }
-    public bool HasConditioner { get; set; }
-    public bool AllowsPets { get; set; }
-    public bool AllowsChildren { get; set; }
-    public bool UtilitiesIncluded { get; set; }
-    public decimal? DepositAmount { get; set; }
-    public string Status { get; set; } = "";
-    public int ViewsCount { get; set; }
-    public int FavoritesCount { get; set; }
-    public int ContactsCount { get; set; }
-    public string Title { get; set; } = "";
-    public string? Description { get; set; }
-    public DateTime? PublishedAt { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
-    public List<ListingImageDto> Images { get; set; } = new();
-    public UserSummaryDto? User { get; set; }
+    public Guid Id { get; init; }
+    public Guid UserId { get; init; }
+    public required string Type { get; init; }
+    public required string DealType { get; init; }
+    public required string City { get; init; }
+    public string? District { get; init; }
+    public string? Address { get; init; }
+    public string? Landmark { get; init; }
+    public decimal? Latitude { get; init; }
+    public decimal? Longitude { get; init; }
+    public short? Rooms { get; init; }
+    public short? Floor { get; init; }
+    public short? TotalFloors { get; init; }
+    public decimal? AreaSqm { get; init; }
+    public decimal Price { get; init; }
+    public string Currency { get; init; } = Rento.Core.Common.Currency.Uzs;
+    public bool PriceNegotiable { get; init; }
+    public bool HasFurniture { get; init; }
+    public bool HasAppliances { get; init; }
+    public bool HasInternet { get; init; }
+    public bool HasParking { get; init; }
+    public bool HasConditioner { get; init; }
+    public bool AllowsPets { get; init; }
+    public bool AllowsChildren { get; init; }
+    public bool UtilitiesIncluded { get; init; }
+    public decimal? DepositAmount { get; init; }
+    public required string Status { get; init; }
+    public int ViewsCount { get; init; }
+    public int FavoritesCount { get; init; }
+    public int ContactsCount { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+    public DateTime? PublishedAt { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime UpdatedAt { get; init; }
+    public List<ListingImageDto> Images { get; init; } = [];
+    public UserSummaryDto? User { get; init; }
 }
 
 public class ListingImageDto
 {
-    public Guid Id { get; set; }
-    public string Url { get; set; } = "";
-    public string? ThumbnailUrl { get; set; }
-    public short SortOrder { get; set; }
-    public bool IsMain { get; set; }
+    public Guid Id { get; init; }
+    public required string Url { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public short SortOrder { get; init; }
+    public bool IsMain { get; init; }
 }
 
 public class UserSummaryDto
 {
-    public Guid Id { get; set; }
-    public string? FullName { get; set; }
-    public string? AvatarUrl { get; set; }
-    public string Role { get; set; } = "";
+    public Guid Id { get; init; }
+    public string? FullName { get; init; }
+    public string? AvatarUrl { get; init; }
+    public required string Role { get; init; }
 }
 
 public class CreateListingRequest
 {
-    public string Type { get; set; } = "";
-    public string? DealType { get; set; }
-    public string City { get; set; } = "";
-    public string? District { get; set; }
-    public string? Address { get; set; }
-    public string? Landmark { get; set; }
-    public decimal? Latitude { get; set; }
-    public decimal? Longitude { get; set; }
-    public short? Rooms { get; set; }
-    public short? Floor { get; set; }
-    public short? TotalFloors { get; set; }
-    public decimal? AreaSqm { get; set; }
-    public decimal Price { get; set; }
-    public string Currency { get; set; } = "UZS";
-    public bool PriceNegotiable { get; set; }
-    public bool HasFurniture { get; set; }
-    public bool HasAppliances { get; set; }
-    public bool HasInternet { get; set; }
-    public bool HasParking { get; set; }
-    public bool HasConditioner { get; set; }
-    public bool AllowsPets { get; set; }
-    public bool AllowsChildren { get; set; }
-    public bool UtilitiesIncluded { get; set; }
-    public decimal? DepositAmount { get; set; }
-    public string Title { get; set; } = "";
-    public string? Description { get; set; }
+    public required string Type { get; init; }
+    public string? DealType { get; init; }
+    public required string City { get; init; }
+    public string? District { get; init; }
+    public string? Address { get; init; }
+    public string? Landmark { get; init; }
+    public decimal? Latitude { get; init; }
+    public decimal? Longitude { get; init; }
+    public short? Rooms { get; init; }
+    public short? Floor { get; init; }
+    public short? TotalFloors { get; init; }
+    public decimal? AreaSqm { get; init; }
+    public decimal Price { get; init; }
+    public string Currency { get; init; } = Rento.Core.Common.Currency.Uzs;
+    public bool PriceNegotiable { get; init; }
+    public bool HasFurniture { get; init; }
+    public bool HasAppliances { get; init; }
+    public bool HasInternet { get; init; }
+    public bool HasParking { get; init; }
+    public bool HasConditioner { get; init; }
+    public bool AllowsPets { get; init; }
+    public bool AllowsChildren { get; init; }
+    public bool UtilitiesIncluded { get; init; }
+    public decimal? DepositAmount { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
 }
 
 public class UpdateListingRequest : CreateListingRequest { }
 
 public class ListingStatsDto
 {
-    public int Views { get; set; }
-    public int Favorites { get; set; }
-    public int Contacts { get; set; }
+    public int Views { get; init; }
+    public int Favorites { get; init; }
+    public int Contacts { get; init; }
 }
