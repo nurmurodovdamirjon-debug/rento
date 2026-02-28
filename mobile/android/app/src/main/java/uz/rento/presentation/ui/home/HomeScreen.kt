@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -149,7 +150,7 @@ fun HomeScreen(
                         ) {
                             EmptyStateView(
                                 message = "E'lonlar topilmadi",
-                                icon = androidx.compose.material.icons.Icons.Outlined.SearchOff,
+                                icon = Icons.Default.SearchOff,
                                 description = "Filtrlarni o'zgartirib ko'ring",
                                 actionText = "Filtrni tozalash",
                                 onAction = { viewModel.refresh() }
@@ -200,6 +201,7 @@ fun HomeScreen(
 /**
  * FilterChipsRow — filtr chiplari qatori
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FilterChipsRow(
     selectedType: ListingType?,

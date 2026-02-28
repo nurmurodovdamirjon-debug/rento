@@ -9,8 +9,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.rememberNavController
 import dagger.hilt.android.AndroidEntryPoint
+import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.presentation.navigation.RentoNavGraph
 import uz.rento.presentation.theme.RentoTheme
+import javax.inject.Inject
 
 /**
  * MainActivity — ilovaning asosiy Activity'si
@@ -20,6 +22,10 @@ import uz.rento.presentation.theme.RentoTheme
  */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var userPreferences: UserPreferences
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -27,7 +33,10 @@ class MainActivity : ComponentActivity() {
             RentoTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
-                    RentoNavGraph(navController = navController)
+                    RentoNavGraph(
+                        navController = navController,
+                        userPreferences = userPreferences
+                    )
                 }
             }
         }

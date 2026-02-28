@@ -30,6 +30,7 @@ class UserPreferences @Inject constructor(
         private val KEY_USER_ID = stringPreferencesKey("user_id")
         private val KEY_USER_PHONE = stringPreferencesKey("user_phone")
         private val KEY_ONBOARDING_SHOWN = booleanPreferencesKey("onboarding_shown")
+        private val KEY_IS_DEMO = booleanPreferencesKey("is_demo_mode")
     }
 
     // ===== Token operatsiyalari =====
@@ -55,6 +56,7 @@ class UserPreferences @Inject constructor(
             prefs.remove(KEY_REFRESH_TOKEN)
             prefs.remove(KEY_USER_ID)
             prefs.remove(KEY_USER_PHONE)
+            prefs.remove(KEY_IS_DEMO)
         }
     }
 
@@ -91,5 +93,22 @@ class UserPreferences @Inject constructor(
 
     val isLoggedIn: Flow<Boolean> = context.dataStore.data.map { prefs ->
         !prefs[KEY_ACCESS_TOKEN].isNullOrBlank()
+    }
+
+    // ===== Demo rejim =====
+
+    val isDemoMode: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[KEY_IS_DEMO] ?: false
+    }
+
+    suspend fun saveDemoMode() {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_ACCESS_TOKEN] = "demo_token"
+            prefs[KEY_REFRESH_TOKEN] = "demo_refresh"
+            prefs[KEY_USER_ID] = "demo_user"
+            prefs[KEY_USER_PHONE] = "+998901234567"
+            prefs[KEY_IS_DEMO] = true
+            prefs[KEY_ONBOARDING_SHOWN] = true
+        }
     }
 }

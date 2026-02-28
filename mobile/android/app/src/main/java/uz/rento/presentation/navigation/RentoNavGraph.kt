@@ -1,12 +1,18 @@
 package uz.rento.presentation.navigation
 
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,10 +22,12 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.navArgument
+import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.presentation.components.BottomNavItem
 import uz.rento.presentation.components.RentoBottomNavBar
 import uz.rento.presentation.ui.auth.LoginScreen
 import uz.rento.presentation.ui.auth.OtpScreen
+import uz.rento.presentation.ui.auth.AuthViewModel
 import uz.rento.presentation.ui.create.CreateListingScreen
 import uz.rento.presentation.ui.detail.ListingDetailScreen
 import uz.rento.presentation.ui.home.HomeScreen
@@ -34,6 +42,9 @@ import uz.rento.presentation.ui.search.SearchScreen
 import uz.rento.presentation.ui.splash.SplashScreen
 import uz.rento.presentation.ui.favorites.FavoritesScreen
 import uz.rento.presentation.ui.notifications.NotificationsScreen
+import androidx.hilt.navigation.compose.hiltViewModel
+
+private const val NAV_ANIM_DURATION = 300
 
 /**
  * RentoNavGraph — asosiy navigatsiya grafi.
@@ -44,10 +55,15 @@ import uz.rento.presentation.ui.notifications.NotificationsScreen
 @Composable
 fun RentoNavGraph(
     navController: NavHostController,
+    userPreferences: UserPreferences,
     modifier: Modifier = Modifier
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+
+    // UserPreferences dan login va onboarding holatini o'qish
+    val isLoggedIn by userPreferences.isLoggedIn.collectAsState(initial = false)
+    val isOnboardingShown by userPreferences.isOnboardingShown.collectAsState(initial = false)
 
     // Bottom nav ko'rsatiladigan ekranlar
     val bottomNavRoutes = listOf(
@@ -79,11 +95,33 @@ fun RentoNavGraph(
         NavHost(
             navController = navController,
             startDestination = Screen.Splash.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
+            enterTransition = {
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(NAV_ANIM_DURATION))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(NAV_ANIM_DURATION))
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(NAV_ANIM_DURATION))
+            },
+            popExitTransition = {
+                fadeOut(animationSpec = tween(NAV_ANIM_DURATION)) +
+                slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(NAV_ANIM_DURATION))
+            }
         ) {
             // Splash
-            composable(Screen.Splash.route) {
+            composable(
+                Screen.Splash.route,
+                enterTransition = { fadeIn(tween(0)) },
+                exitTransition = { fadeOut(tween(NAV_ANIM_DURATION)) }
+            ) {
                 SplashScreen(
+                    isLoggedIn = isLoggedIn,
+                    isOnboardingShown = isOnboardingShown,
                     onNavigateToOnboarding = {
                         navController.navigate(Screen.Onboarding.route) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
@@ -100,7 +138,7 @@ fun RentoNavGraph(
             // Onboarding
             composable(Screen.Onboarding.route) {
                 OnboardingScreen(
-                    onFinish = {
+                    onNavigateToLogin = {
                         navController.navigate(Screen.Login.route) {
                             popUpTo(Screen.Onboarding.route) { inclusive = true }
                         }
@@ -110,9 +148,16 @@ fun RentoNavGraph(
 
             // Login
             composable(Screen.Login.route) {
+                val authViewModel: AuthViewModel = hiltViewModel()
                 LoginScreen(
-                    onOtpSent = { phone ->
+                    viewModel = authViewModel,
+                    onNavigateToOtp = { phone ->
                         navController.navigate(Screen.Otp.createRoute(phone))
+                    },
+                    onNavigateToHome = {
+                        navController.navigate(Screen.Home.route) {
+                            popUpTo(Screen.Login.route) { inclusive = true }
+                        }
                     }
                 )
             }
@@ -124,15 +169,23 @@ fun RentoNavGraph(
                     navArgument("phone") { type = NavType.StringType }
                 )
             ) { backStackEntry ->
-                val phone = backStackEntry.arguments?.getString("phone") ?: ""
+                val phone = android.net.Uri.decode(backStackEntry.arguments?.getString("phone") ?: "")
+                val authViewModel: AuthViewModel = hiltViewModel()
+                // Nav argumentdan telefon raqamni ViewModel ga o'rnatish
+                androidx.compose.runtime.LaunchedEffect(phone) {
+                    if (phone.isNotEmpty()) {
+                        authViewModel.updatePhone(phone)
+                    }
+                }
                 OtpScreen(
+                    viewModel = authViewModel,
                     phone = phone,
-                    onVerified = {
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToHome = {
                         navController.navigate(Screen.Home.route) {
                             popUpTo(Screen.Login.route) { inclusive = true }
                         }
-                    },
-                    onBack = { navController.popBackStack() }
+                    }
                 )
             }
 
@@ -287,16 +340,13 @@ private fun PlaceholderScreen(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        androidx.compose.foundation.layout.Column(
+        Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 title,
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
-            )
-            androidx.compose.foundation.layout.Spacer(
-                modifier = Modifier.run { androidx.compose.foundation.layout.height(8.dp) }
             )
             Text(
                 subtitle,

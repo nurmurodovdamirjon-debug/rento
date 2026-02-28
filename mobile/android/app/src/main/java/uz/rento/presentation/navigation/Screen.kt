@@ -18,7 +18,7 @@ sealed class Screen(val route: String) {
 
     /** OTP — tasdiqlash kodi kiritish */
     data object Otp : Screen("otp/{phone}") {
-        fun createRoute(phone: String): String = "otp/$phone"
+        fun createRoute(phone: String): String = "otp/${android.net.Uri.encode(phone)}"
     }
 
     /** Home — asosiy e'lonlar ro'yxati */

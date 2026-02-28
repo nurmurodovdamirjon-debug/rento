@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import uz.rento.data.local.preferences.UserPreferences
 import uz.rento.domain.model.User
 import uz.rento.domain.usecase.auth.SendOtpUseCase
 import uz.rento.domain.usecase.auth.VerifyOtpUseCase
@@ -27,7 +28,8 @@ data class AuthUiState(
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val sendOtpUseCase: SendOtpUseCase,
-    private val verifyOtpUseCase: VerifyOtpUseCase
+    private val verifyOtpUseCase: VerifyOtpUseCase,
+    private val userPreferences: UserPreferences
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AuthUiState())
@@ -94,11 +96,44 @@ class AuthViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isLoading = false,
-                            error = error.message ?: "OTP tasdiqlashda xatolik",
-                            otp = "" // OTP ni tozalash
+                            error = error.message ?: "OTP tasdiqlashda xatolik"
                         )
                     }
                 }
+        }
+    }
+
+    /**
+     * Demo rejimda kirish — serverga so'rov yubormasdan
+     * DataStore ga demo token saqlaydi va isAuthenticated = true qiladi
+     */
+    fun loginAsDemo() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            userPreferences.saveDemoMode()
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    isAuthenticated = true,
+                    user = User(
+                        id = "demo_user",
+                        phone = "+998901234567",
+                        phoneVerified = true,
+                        fullName = "Demo Foydalanuvchi",
+                        email = null,
+                        avatarUrl = null,
+                        role = "tenant",
+                        idVerified = false,
+                        ratingAvg = 0.0,
+                        ratingCount = 0,
+                        subscription = "free",
+                        language = "uz",
+                        lastSeenAt = null,
+                        createdAt = "2026-01-01T00:00:00Z",
+                        isActive = true
+                    )
+                )
+            }
         }
     }
 

@@ -113,10 +113,10 @@ private fun uz.rento.data.remote.dto.UserDto.toDomain(): User {
         idVerified = idVerified,
         ratingAvg = ratingAvg,
         ratingCount = ratingCount,
-        subscription = subscription,
-        language = language,
+        subscription = subscription ?: "free",
+        language = language ?: "uz",
         lastSeenAt = lastSeenAt,
-        createdAt = createdAt,
+        createdAt = createdAt ?: "",
         isActive = isActive
     )
 }

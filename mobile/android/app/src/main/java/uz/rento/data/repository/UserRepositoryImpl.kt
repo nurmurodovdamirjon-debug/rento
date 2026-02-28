@@ -116,7 +116,7 @@ class UserRepositoryImpl @Inject constructor(
         return try {
             val entities = userDao.getAll()
             val entity = entities.firstOrNull()
-                ?: return Result.failure(Exception("Keshda profil yo'q va internet mavjud emas"))
+                ?: return Result.failure(Exception("Keshda profil yo'q"))
             Result.success(entity.toDomain())
         } catch (e: Exception) {
             Log.e(TAG, "Keshdan profilni o'qishda xato", e)
@@ -149,10 +149,10 @@ private fun uz.rento.data.remote.dto.UserDto.toDomain(): User {
         idVerified = idVerified,
         ratingAvg = ratingAvg,
         ratingCount = ratingCount,
-        subscription = subscription,
-        language = language,
+        subscription = subscription ?: "free",
+        language = language ?: "uz",
         lastSeenAt = lastSeenAt,
-        createdAt = createdAt,
+        createdAt = createdAt ?: "",
         isActive = isActive
     )
 }

@@ -1,0 +1,146 @@
+using Rento.Application.DTOs.Auth;
+using Rento.Application.Repositories;
+using Rento.Application.Services;
+using Rento.Core.Entities;
+
+namespace Rento.Application.Services.Implementations;
+
+public class AuthService : IAuthService
+{
+    private readonly IUserRepository _userRepo;
+    private readonly IJwtTokenService _jwt;
+    private readonly IOtpService _otp;
+    private readonly ISessionService _session;
+    private readonly ISmsService _sms;
+    private readonly int _otpExpirySeconds;
+    private readonly int _smsMaxPerHour;
+    private readonly int _smsWindowSeconds;
+    private readonly int _refreshExpiryDays;
+
+    public AuthService(
+        IUserRepository userRepo,
+        IJwtTokenService jwt,
+        IOtpService otp,
+        ISessionService session,
+        ISmsService sms,
+        Microsoft.Extensions.Configuration.IConfiguration config)
+    {
+        _userRepo = userRepo;
+        _jwt = jwt;
+        _otp = otp;
+        _session = session;
+        _sms = sms;
+        _otpExpirySeconds = int.Parse(config["Otp:ExpirySeconds"] ?? "300");
+        _smsMaxPerHour = int.Parse(config["RateLimit:SmsMaxPerHour"] ?? "3");
+        _smsWindowSeconds = int.Parse(config["RateLimit:SmsWindowSeconds"] ?? "3600");
+        _refreshExpiryDays = int.Parse(config["Jwt:RefreshExpiryDays"] ?? "7");
+    }
+
+    public async Task<SendOtpResult> SendOtpAsync(SendOtpRequest request, CancellationToken ct = default)
+    {
+        var phone = request.Phone.Trim();
+        var attempts = await _otp.GetAttemptsAsync(phone, ct);
+        if (attempts >= _smsMaxPerHour)
+            throw new InvalidOperationException("AUTH_OTP_LIMIT");
+
+        var otpCode = Random.Shared.Next(100000, 999999).ToString();
+        await _otp.SetOtpAsync(phone, otpCode, TimeSpan.FromSeconds(_otpExpirySeconds), ct);
+        await _otp.IncrementAttemptsAsync(phone, TimeSpan.FromSeconds(_smsWindowSeconds), _smsMaxPerHour, ct);
+
+        await _sms.SendOtpAsync(phone, otpCode, ct);
+
+        var remaining = await _otp.GetAttemptsRemainingAsync(phone, _smsMaxPerHour, ct);
+        return new SendOtpResult
+        {
+            Phone = phone,
+            ExpiresIn = _otpExpirySeconds,
+            RetryAfter = 60,
+            AttemptsRemaining = remaining
+        };
+    }
+
+    public async Task<VerifyOtpResult> VerifyOtpAsync(VerifyOtpRequest request, CancellationToken ct = default)
+    {
+        var phone = request.Phone.Trim();
+        var storedOtp = await _otp.GetAndDeleteOtpAsync(phone, ct);
+        if (storedOtp == null)
+            throw new InvalidOperationException("AUTH_OTP_EXPIRED");
+        if (storedOtp != request.Otp?.Trim())
+            throw new InvalidOperationException("AUTH_OTP_INVALID");
+
+        var (user, isNewUser) = await FindOrCreateUserAsync(phone, ct);
+        if (user.IsBlocked)
+            throw new InvalidOperationException("USER_BLOCKED");
+
+        var accessToken = _jwt.GenerateAccessToken(user.Id, user.Role, user.Phone);
+        var refreshToken = _jwt.GenerateRefreshToken(user.Id, user.Role, user.Phone);
+        await _session.SetSessionAsync(user.Id, refreshToken, TimeSpan.FromDays(_refreshExpiryDays), ct);
+        await _userRepo.UpdateLastSeenAsync(user.Id, ct);
+
+        return new VerifyOtpResult
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = _jwt.GetAccessExpirySeconds(),
+            User = new VerifyOtpUser
+            {
+                Id = user.Id,
+                Phone = user.Phone,
+                FullName = user.FullName,
+                Role = user.Role,
+                IsNewUser = isNewUser
+            }
+        };
+    }
+
+    public async Task<TokenResult> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default)
+    {
+        var payload = _jwt.ValidateRefreshToken(request.RefreshToken ?? "");
+        if (payload == null)
+            throw new InvalidOperationException("AUTH_TOKEN_INVALID");
+
+        var stored = await _session.GetSessionAsync(payload.Value.UserId, ct);
+        if (stored == null || stored != request.RefreshToken)
+            throw new InvalidOperationException("AUTH_TOKEN_INVALID");
+
+        var user = await _userRepo.GetByIdAsync(payload.Value.UserId, ct);
+        if (user == null || user.IsBlocked)
+            throw new InvalidOperationException("USER_BLOCKED");
+
+        var accessToken = _jwt.GenerateAccessToken(user.Id, user.Role, user.Phone);
+        var refreshToken = _jwt.GenerateRefreshToken(user.Id, user.Role, user.Phone);
+        await _session.SetSessionAsync(user.Id, refreshToken, TimeSpan.FromDays(_refreshExpiryDays), ct);
+
+        return new TokenResult
+        {
+            AccessToken = accessToken,
+            RefreshToken = refreshToken,
+            TokenType = "Bearer",
+            ExpiresIn = _jwt.GetAccessExpirySeconds()
+        };
+    }
+
+    public async Task LogoutAsync(Guid userId, CancellationToken ct = default)
+    {
+        await _session.DeleteSessionAsync(userId, ct);
+    }
+
+    private async Task<(User User, bool IsNewUser)> FindOrCreateUserAsync(string phone, CancellationToken ct)
+    {
+        var user = await _userRepo.GetByPhoneAsync(phone, ct);
+        if (user != null)
+            return (user, false);
+
+        var newUser = new User
+        {
+            Phone = phone,
+            PhoneVerified = true,
+            Role = "tenant",
+            Language = "uz",
+            IsActive = true
+        };
+        var created = await _userRepo.CreateAsync(newUser, ct);
+        return (created, true);
+    }
+}

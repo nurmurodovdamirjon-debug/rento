@@ -21,7 +21,6 @@ import (
 	"github.com/rento/core-api/internal/report"
 	"github.com/rento/core-api/internal/user"
 	"github.com/rento/core-api/pkg/database"
-	"github.com/rento/core-api/pkg/response"
 )
 
 func main() {

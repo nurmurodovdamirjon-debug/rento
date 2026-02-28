@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -77,7 +78,7 @@ fun ChatListScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         // Top Bar
         TopAppBar(
             title = {
@@ -163,6 +164,7 @@ fun ChatListScreen(
 /**
  * ChatRoomItem — chat xonasi karti
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatRoomItem(
     chat: ChatRoom,

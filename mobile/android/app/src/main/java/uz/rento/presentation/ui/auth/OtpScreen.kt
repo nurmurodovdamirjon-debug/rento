@@ -1,6 +1,10 @@
 package uz.rento.presentation.ui.auth
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,7 +12,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -16,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -35,6 +41,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import uz.rento.presentation.components.RentoButton
@@ -113,8 +120,8 @@ fun OtpScreen(
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // OTP kiritish maydoni
-            OutlinedTextField(
+            // OTP kiritish maydoni — alohida katakchalar
+            BasicTextField(
                 value = uiState.otp,
                 onValueChange = { value ->
                     if (value.length <= 6 && value.all { it.isDigit() }) {
@@ -125,25 +132,50 @@ fun OtpScreen(
                         }
                     }
                 },
-                modifier = Modifier
-                    .width(200.dp)
-                    .focusRequester(focusRequester),
-                textStyle = MaterialTheme.typography.headlineMedium.copy(
-                    textAlign = TextAlign.Center,
-                    letterSpacing = 8.dp.value.sp
-                ),
+                modifier = Modifier.focusRequester(focusRequester),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                placeholder = {
-                    Text(
-                        text = "000000",
-                        style = MaterialTheme.typography.headlineMedium.copy(
-                            textAlign = TextAlign.Center,
-                            letterSpacing = 8.dp.value.sp
-                        ),
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
-                    )
+                decorationBox = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(6) { index ->
+                            val char = uiState.otp.getOrNull(index)
+                            val isFocused = uiState.otp.length == index
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .border(
+                                        width = if (isFocused) 2.dp else 1.dp,
+                                        color = if (isFocused) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else if (char != null) {
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                                        } else {
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    )
+                                    .background(
+                                        color = if (char != null) {
+                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
+                                        } else {
+                                            MaterialTheme.colorScheme.surface
+                                        },
+                                        shape = RoundedCornerShape(12.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = char?.toString() ?: "",
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
                 }
             )
 
@@ -182,6 +214,3 @@ fun OtpScreen(
         }
     }
 }
-
-// sp extension for dp.value
-private val Float.sp get() = androidx.compose.ui.unit.TextUnit(this, androidx.compose.ui.unit.TextUnitType.Sp)

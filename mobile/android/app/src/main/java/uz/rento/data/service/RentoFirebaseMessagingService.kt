@@ -17,7 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import uz.rento.R
 import uz.rento.domain.usecase.notification.RegisterFcmTokenUseCase
-import uz.rento.presentation.MainActivity
+import uz.rento.MainActivity
 import javax.inject.Inject
 
 /**

@@ -1,10 +1,10 @@
-import { NextFunction, Request, Response } from 'express';
-import { ZodError } from 'zod';
-import * as authService from '../services/auth.service';
-import { ApiResponse, AuthRequest } from '../types';
-import { ValidationError } from '../utils/errors';
-import { logger } from '../utils/logger';
-import { refreshTokenSchema, sendOtpSchema, verifyOtpSchema } from '../validators/auth.validator';
+import { NextFunction, Request, Response } from 'express'
+import { ZodError } from 'zod'
+import * as authService from '../services/auth.service'
+import { ApiResponse, AuthRequest } from '../types'
+import { ValidationError } from '../utils/errors'
+import { logger } from '../utils/logger'
+import { refreshTokenSchema, sendOtpSchema, verifyOtpSchema } from '../validators/auth.validator'
 
 /**
  * POST /api/v1/auth/send-otp
@@ -37,6 +37,7 @@ export async function sendOtp(req: Request, res: Response, next: NextFunction): 
  */
 export async function verifyOtpHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    logger.info(`[VERIFY-OTP] Raw body: ${JSON.stringify(req.body)}`);
     const { phone, otp } = verifyOtpSchema.parse(req.body);
 
     const result = await authService.verifyOtp(phone, otp);
@@ -49,9 +50,11 @@ export async function verifyOtpHandler(req: Request, res: Response, next: NextFu
     res.status(200).json(response);
   } catch (error) {
     if (error instanceof ZodError) {
+      logger.warn(`[VERIFY-OTP] Zod validation failed: ${JSON.stringify(error.errors)}`);
       next(new ValidationError('Validatsiya xatosi', error.errors));
       return;
     }
+    logger.error(`[VERIFY-OTP] Error: ${error instanceof Error ? error.message : error}`);
     next(error);
   }
 }

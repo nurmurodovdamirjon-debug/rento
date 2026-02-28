@@ -368,7 +368,7 @@ class ChatRepositoryImpl @Inject constructor(
             val offset = (page - 1) * perPage
             val entities = chatDao.getChatRooms(perPage, offset)
             if (entities.isEmpty()) {
-                return Result.failure(Exception("Keshda chatlar yo'q va internet mavjud emas"))
+                return Result.failure(Exception("Keshda chatlar yo'q"))
             }
             Result.success(
                 ChatsPage(
@@ -390,7 +390,7 @@ class ChatRepositoryImpl @Inject constructor(
             val offset = (page - 1) * perPage
             val entities = chatDao.getMessages(roomId, perPage, offset)
             if (entities.isEmpty()) {
-                return Result.failure(Exception("Keshda xabarlar yo'q va internet mavjud emas"))
+                return Result.failure(Exception("Keshda xabarlar yo'q"))
             }
             Result.success(
                 MessagesPage(

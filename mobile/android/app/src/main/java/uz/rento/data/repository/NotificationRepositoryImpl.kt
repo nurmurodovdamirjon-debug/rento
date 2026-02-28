@@ -55,11 +55,11 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun markAsRead(notificationId: String): Result<Unit> {
         return try {
             val response = notificationApi.markAsRead(notificationId)
-            if (response.success) {
+            if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
                 Result.failure(
-                    Exception(response.error?.message ?: "O'qilgan deb belgilashda xatolik")
+                    Exception("O'qilgan deb belgilashda xatolik: ${response.code()}")
                 )
             }
         } catch (e: Exception) {
@@ -87,7 +87,7 @@ class NotificationRepositoryImpl @Inject constructor(
             val response = notificationApi.registerFcmToken(
                 RegisterFcmTokenRequest(token = token, deviceType = "android")
             )
-            if (response.success) {
+            if (response.success && response.data != null) {
                 Result.success(Unit)
             } else {
                 Result.failure(
@@ -102,13 +102,13 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun unregisterFcmToken(token: String): Result<Unit> {
         return try {
             val response = notificationApi.unregisterFcmToken(
-                RegisterFcmTokenRequest(token = token, deviceType = "android")
+                mapOf("token" to token, "device_type" to "android")
             )
-            if (response.success) {
+            if (response.isSuccessful) {
                 Result.success(Unit)
             } else {
                 Result.failure(
-                    Exception(response.error?.message ?: "Token o'chirishda xatolik")
+                    Exception("Token o'chirishda xatolik: ${response.code()}")
                 )
             }
         } catch (e: Exception) {

@@ -25,8 +25,8 @@ class AuthInterceptor @Inject constructor(
             userPreferences.accessToken.first()
         }
 
-        // Token bo'sh bo'lsa, original so'rovni yuborish
-        if (accessToken.isNullOrBlank()) {
+        // Token bo'sh yoki demo token bo'lsa, original so'rovni yuborish
+        if (accessToken.isNullOrBlank() || accessToken == "demo_token") {
             return chain.proceed(originalRequest)
         }
 

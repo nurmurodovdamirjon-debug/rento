@@ -81,8 +81,9 @@ class FavoriteRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             // Offline fallback: check local cache
             try {
-                Result.success(favoriteDao.isFavorite(listingId))
-            } catch (cacheEx: Exception) {
+                val cached = favoriteDao.isFavorite(listingId) > 0
+                Result.success(cached)
+            } catch (_: Exception) {
                 Result.failure(e)
             }
         }
@@ -121,7 +122,7 @@ class FavoriteRepositoryImpl @Inject constructor(
         return try {
             val entities = favoriteDao.getAll()
             if (entities.isEmpty()) {
-                return Result.failure(Exception("Keshda sevimlilar yo'q va internet mavjud emas"))
+                return Result.failure(Exception("Keshda sevimlilar yo'q"))
             }
             Result.success(
                 FavoritesPage(

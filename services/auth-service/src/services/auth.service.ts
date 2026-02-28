@@ -74,11 +74,15 @@ export async function verifyOtp(phone: string, otp: string): Promise<VerifyOtpRe
   const otpKey = OTP_KEY(phone);
   const storedOtp = await redis.get(otpKey);
 
+  logger.info(`[VERIFY] phone="${phone}", otpKey="${otpKey}", storedOtp="${storedOtp}", receivedOtp="${otp}"`);
+
   if (!storedOtp) {
+    logger.warn(`[VERIFY FAIL] OTP expired for phone="${phone}"`);
     throw new AuthOtpExpiredError();
   }
 
   if (storedOtp !== otp) {
+    logger.warn(`[VERIFY FAIL] OTP invalid for phone="${phone}", expected="${storedOtp}", got="${otp}"`);
     throw new AuthOtpInvalidError();
   }
 

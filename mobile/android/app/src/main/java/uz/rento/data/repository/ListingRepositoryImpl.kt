@@ -366,7 +366,7 @@ class ListingRepositoryImpl @Inject constructor(
             }
 
             if (entities.isEmpty()) {
-                return Result.failure(Exception("Keshda ma'lumot yo'q va internet mavjud emas"))
+                return Result.failure(Exception("Keshda ma'lumot yo'q"))
             }
 
             val listingIds = entities.map { it.id }
@@ -374,7 +374,7 @@ class ListingRepositoryImpl @Inject constructor(
             val imageMap = imageEntities.groupBy { it.listingId }
 
             val items = entities.map { entity ->
-                val images = imageMap[entity.id]?.map { it.toDomain() } ?: emptyList()
+                val images = imageMap[entity.id] ?: emptyList()
                 entity.toDomain(images)
             }
 
@@ -399,8 +399,7 @@ class ListingRepositoryImpl @Inject constructor(
             val entity = listingDao.getListingById(id)
                 ?: return Result.failure(Exception("Keshda e'lon topilmadi"))
             val imageEntities = listingDao.getImages(id)
-            val images = imageEntities.map { it.toDomain() }
-            Result.success(entity.toDomain(images))
+            Result.success(entity.toDomain(imageEntities))
         } catch (e: Exception) {
             Log.e(TAG, "Keshdan o'qishda xato: $id", e)
             Result.failure(Exception("Offline ma'lumotni olishda xatolik"))

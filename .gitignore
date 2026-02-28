@@ -52,10 +52,15 @@ desktop.ini
 .vscode/
 !.vscode/settings.json
 !.vscode/extensions.json
+.vs/
 .idea/
 *.swp
 *.swo
 *~
+
+# ===== .NET / C# =====
+**/bin/
+**/obj/
 
 # ===== MISC =====
 *.tmp

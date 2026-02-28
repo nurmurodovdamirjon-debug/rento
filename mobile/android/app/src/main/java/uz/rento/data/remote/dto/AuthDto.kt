@@ -57,19 +57,20 @@ data class RefreshTokenResponse(
 data class UserDto(
     val id: String,
     val phone: String,
-    @SerializedName("phone_verified") val phoneVerified: Boolean,
-    @SerializedName("full_name") val fullName: String?,
-    val email: String?,
-    @SerializedName("avatar_url") val avatarUrl: String?,
-    val role: String,
-    @SerializedName("id_verified") val idVerified: Boolean,
-    @SerializedName("rating_avg") val ratingAvg: Double,
-    @SerializedName("rating_count") val ratingCount: Int,
-    val subscription: String,
-    val language: String,
-    @SerializedName("last_seen_at") val lastSeenAt: String?,
-    @SerializedName("created_at") val createdAt: String,
-    @SerializedName("is_active") val isActive: Boolean
+    @SerializedName("phone_verified") val phoneVerified: Boolean = false,
+    @SerializedName("full_name") val fullName: String? = null,
+    val email: String? = null,
+    @SerializedName("avatar_url") val avatarUrl: String? = null,
+    val role: String = "tenant",
+    @SerializedName("id_verified") val idVerified: Boolean = false,
+    @SerializedName("rating_avg") val ratingAvg: Double = 0.0,
+    @SerializedName("rating_count") val ratingCount: Int = 0,
+    val subscription: String? = "free",
+    val language: String? = "uz",
+    @SerializedName("last_seen_at") val lastSeenAt: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("is_active") val isActive: Boolean = true,
+    @SerializedName("is_new_user") val isNewUser: Boolean = false
 )
 
 data class PublicUserDto(

@@ -111,7 +111,7 @@ fun CreateListingScreen(
         ) {
             // Progress bar
             LinearProgressIndicator(
-                progress = { (uiState.currentStep + 1).toFloat() / uiState.totalSteps },
+                progress = (uiState.currentStep + 1).toFloat() / uiState.totalSteps,
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -156,6 +156,7 @@ fun CreateListingScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Step1BasicInfo(
     state: CreateListingUiState,
@@ -235,6 +236,7 @@ private fun Step1BasicInfo(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Step2Location(
     state: CreateListingUiState,
@@ -415,6 +417,7 @@ private fun Step3Parameters(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun Step4Amenities(
     state: CreateListingUiState,

@@ -93,7 +93,7 @@ fun EditProfileScreen(
             // Ism
             RentoTextField(
                 value = uiState.editFullName,
-                onValueChange = viewModel::updateEditFullName,
+                onValueChange = viewModel::updateFullName,
                 label = "To'liq ism",
                 modifier = Modifier.fillMaxWidth(),
                 maxLength = 100
@@ -104,7 +104,7 @@ fun EditProfileScreen(
             // Email
             RentoTextField(
                 value = uiState.editEmail,
-                onValueChange = viewModel::updateEditEmail,
+                onValueChange = viewModel::updateEmail,
                 label = "Email",
                 modifier = Modifier.fillMaxWidth(),
                 maxLength = 255
@@ -115,7 +115,7 @@ fun EditProfileScreen(
             // Til tanlash
             LanguageDropdown(
                 selectedLanguage = uiState.editLanguage,
-                onLanguageSelected = viewModel::updateEditLanguage
+                onLanguageSelected = viewModel::updateLanguage
             )
 
             Spacer(modifier = Modifier.height(32.dp))
